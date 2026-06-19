@@ -22,5 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CONFIRMO"
+rootProject.name = "TConfirmo"
 include(":app")
+ 

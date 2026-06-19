@@ -1,4 +1,4 @@
-package com.example.confirmo
+package com.example.tconfirmo
 
 import org.junit.Test
 
