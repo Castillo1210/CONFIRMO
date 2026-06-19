@@ -103,7 +103,9 @@ private sealed interface VoucherImage {
 fun RegisterSheet(
     visible: Boolean = true,
     initialVoucherUris: List<Uri> = emptyList(),
+    initialDepositDrafts: List<DepositDraft> = emptyList(),
     onInitialVouchersConsumed: (Int) -> Unit = {},
+    onInitialDepositDraftsConsumed: (Int) -> Unit = {},
     resetKey: Int = 0,
     onClose: () -> Unit,
     onSubmit: (solicitudes: List<DepositDraft>) -> Unit
@@ -204,6 +206,31 @@ fun RegisterSheet(
             items = items + incomingItems
             mode = RegisterMode.Cart
             onInitialVouchersConsumed(initialVoucherUris.size)
+        }
+    }
+
+    LaunchedEffect(initialDepositDrafts) {
+        if (initialDepositDrafts.isNotEmpty()) {
+            val incomingItems = initialDepositDrafts.map { draft ->
+                DepositCartItem(
+                    image = draft.imageUri.toVoucherImage(context),
+                    empresa = draft.empresa,
+                    banco = draft.banco,
+                    cliente = draft.cliente
+                )
+            }
+            items = incomingItems
+            incomingItems.firstOrNull()?.let { item ->
+                draftImage = item.image
+                draftEmpresa = item.empresa
+                draftBanco = item.banco
+                draftCliente = item.cliente
+                editingItemId = item.id
+                mode = RegisterMode.Form
+            } ?: run {
+                mode = RegisterMode.Cart
+            }
+            onInitialDepositDraftsConsumed(initialDepositDrafts.size)
         }
     }
 
@@ -988,6 +1015,22 @@ private fun Uri.toVoucherImage(context: Context): VoucherImage {
         VoucherImage.Pdf(localUri)
     } else {
         VoucherImage.Gallery(localUri)
+    }
+}
+
+private fun String.toVoucherImage(context: Context): VoucherImage {
+    val uri = when {
+        startsWith("content://", ignoreCase = true) -> Uri.parse(this)
+        startsWith("file://", ignoreCase = true) -> Uri.parse(this)
+        startsWith("http://", ignoreCase = true) -> Uri.parse(this)
+        startsWith("https://", ignoreCase = true) -> Uri.parse(this)
+        else -> Uri.fromFile(File(this))
+    }
+    val mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+    return if (isPdfVoucher(uri, mimeType)) {
+        VoucherImage.Pdf(uri)
+    } else {
+        VoucherImage.Gallery(uri)
     }
 }
 

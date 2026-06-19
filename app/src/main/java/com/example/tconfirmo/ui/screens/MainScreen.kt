@@ -57,6 +57,7 @@ fun MainScreen(
     var selectedTab by remember { mutableStateOf(0) }
     var showRegisterSheet by remember { mutableStateOf(false) }
     var registerSharedVoucherUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var registerInitialDrafts by remember { mutableStateOf<List<DepositDraft>>(emptyList()) }
     var registerResetKey by remember { mutableStateOf(0) }
     var messages by remember { mutableStateOf(getInitialMessages()) }
     var reports by remember { mutableStateOf(getInitialReports()) }
@@ -72,43 +73,34 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 8.dp
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(64.dp),
+                color = Color.White,
+                tonalElevation = 0.dp,
+                shadowElevation = 0.dp
             ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.AutoMirrored.Filled.Message, contentDescription = "Chat") },
-                    label = { Text("Chat", fontSize = 9.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryGreen,
-                        selectedTextColor = PrimaryGreen,
-                        indicatorColor = Color(0xFFE8F5E9)
+                Row(modifier = Modifier.fillMaxSize()) {
+                    BottomNavItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = Icons.Default.ChatBubbleOutline,
+                        label = "Chat"
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Reportes") },
-                    label = { Text("Reportes", fontSize = 9.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryGreen,
-                        selectedTextColor = PrimaryGreen,
-                        indicatorColor = Color(0xFFE8F5E9)
+                    BottomNavItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = Icons.Default.BarChart,
+                        label = "Reportes"
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Configuracion") },
-                    label = { Text("Ajustes", fontSize = 9.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryGreen,
-                        selectedTextColor = PrimaryGreen,
-                        indicatorColor = Color(0xFFE8F5E9)
+                    BottomNavItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = Icons.Default.Settings,
+                        label = "Configuracion"
                     )
-                )
+                }
             }
         }
     ) { innerPadding ->
@@ -130,7 +122,23 @@ fun MainScreen(
                         messages = messages + newMsg
                     }
                 )
-                1 -> ReportsTab(reports = reports)
+                1 -> ReportsTab(
+                    reports = reports,
+                    onRegularize = { report ->
+                        val imageUrl = report.imageUrl ?: return@ReportsTab
+                        registerSharedVoucherUris = emptyList()
+                        registerResetKey += 1
+                        registerInitialDrafts = listOf(
+                            DepositDraft(
+                                empresa = report.empresa,
+                                banco = report.banco,
+                                cliente = report.cliente,
+                                imageUri = imageUrl
+                            )
+                        )
+                        showRegisterSheet = true
+                    }
+                )
                 2 -> SettingsTab(onLogout = onLogout)
             }
         }
@@ -138,12 +146,16 @@ fun MainScreen(
         RegisterSheet(
             visible = showRegisterSheet,
             initialVoucherUris = registerSharedVoucherUris,
+            initialDepositDrafts = registerInitialDrafts,
             resetKey = registerResetKey,
             onClose = {
                 showRegisterSheet = false
             },
             onInitialVouchersConsumed = { consumed ->
                 registerSharedVoucherUris = registerSharedVoucherUris.drop(consumed)
+            },
+            onInitialDepositDraftsConsumed = { consumed ->
+                registerInitialDrafts = registerInitialDrafts.drop(consumed)
             },
             onSubmit = { solicitudes ->
                     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -189,9 +201,48 @@ fun MainScreen(
                     reports = newReports + reports
                     showRegisterSheet = false
                     registerSharedVoucherUris = emptyList()
+                    registerInitialDrafts = emptyList()
                     registerResetKey += 1
                     selectedTab = 0
             }
+        )
+    }
+}
+
+@Composable
+private fun RowScope.BottomNavItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String
+) {
+    val color = if (selected) PrimaryGreen else Color(0xFF7B675A)
+    Column(
+        modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .height(2.dp)
+                .width(84.dp)
+                .background(if (selected) PrimaryGreen else Color.Transparent)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = color,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = color,
+            fontSize = 9.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
         )
     }
 }
@@ -398,15 +449,38 @@ private fun SearchBar(
 }
 
 @Composable
-fun ReportsTab(reports: List<Report>) {
+fun ReportsTab(
+    reports: List<Report>,
+    onRegularize: (Report) -> Unit
+) {
     var filter by remember { mutableStateOf("all") }
+    var currentPage by remember { mutableStateOf(0) }
     var selectedReport by remember { mutableStateOf<Report?>(null) }
     val context = LocalContext.current
-    val filteredReports = when (filter) {
-        "pending" -> reports.filter { it.status == ReportStatus.PENDING }
-        "validated" -> reports.filter { it.status == ReportStatus.VALIDATED }
-        "rejected" -> reports.filter { it.status == ReportStatus.REJECTED }
-        else -> reports
+    val pageSize = 5
+    val filteredReports = remember(reports, filter) {
+        reports
+            .asSequence()
+            .filter { report ->
+                when (filter) {
+                    "pending" -> report.status == ReportStatus.PENDING
+                    "validated" -> report.status == ReportStatus.VALIDATED
+                    "rejected" -> report.status == ReportStatus.REJECTED
+                    else -> true
+                }
+            }
+            .sortedByDescending { report -> reportDateTimeMillis(report) }
+            .toList()
+    }
+    val totalPages = ((filteredReports.size + pageSize - 1) / pageSize).coerceAtLeast(1)
+    val visibleReports = filteredReports.drop(currentPage * pageSize).take(pageSize)
+
+    LaunchedEffect(filter, reports.size) {
+        currentPage = 0
+    }
+
+    LaunchedEffect(totalPages) {
+        if (currentPage > totalPages - 1) currentPage = totalPages - 1
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F4EE))) {
@@ -455,21 +529,165 @@ fun ReportsTab(reports: List<Report>) {
             item { FilterChip(selected = filter == "rejected", label = "Rechazadas", onClick = { filter = "rejected" }) }
         }
 
+        ReportsPaginationSummary(
+            total = filteredReports.size,
+            currentPage = currentPage,
+            totalPages = totalPages
+        )
+
         // List
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(filteredReports) { report ->
-                ReportItem(report = report, onClick = { selectedReport = report })
+            items(visibleReports) { report ->
+                ReportItem(
+                    report = report,
+                    onClick = { selectedReport = report },
+                    onRegularize = { onRegularize(report) }
+                )
             }
         }
+
+        ReportsPaginationControls(
+            currentPage = currentPage,
+            totalPages = totalPages,
+            onPrevious = { if (currentPage > 0) currentPage-- },
+            onNext = { if (currentPage < totalPages - 1) currentPage++ },
+            onPageSelected = { page -> currentPage = page }
+        )
 
         selectedReport?.let { report ->
             ReportDetailSheet(
                 report = report,
                 onClose = { selectedReport = null }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportsPaginationSummary(total: Int, currentPage: Int, totalPages: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (total == 0) "Sin resultados" else "$total resultado${if (total == 1) "" else "s"}",
+            color = Color(0xFF81776E),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "Pag. ${currentPage + 1}/$totalPages",
+            color = Color(0xFF81776E),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun ReportsPaginationControls(
+    currentPage: Int,
+    totalPages: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onPageSelected: (Int) -> Unit
+) {
+    val maxVisiblePages = 6
+    val startPage = when {
+        totalPages <= maxVisiblePages -> 0
+        currentPage >= totalPages - maxVisiblePages -> totalPages - maxVisiblePages
+        else -> currentPage
+    }
+    val endPage = (startPage + maxVisiblePages - 1).coerceAtMost(totalPages - 1)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.White)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+    ) {
+        PaginationNavButton(
+            text = "Ant.",
+            iconStart = true,
+            enabled = currentPage > 0,
+            onClick = onPrevious
+        )
+        for (page in startPage..endPage) {
+            PaginationPageButton(
+                page = page,
+                selected = page == currentPage,
+                onClick = { onPageSelected(page) }
+            )
+        }
+        PaginationNavButton(
+            text = "Sig.",
+            iconStart = false,
+            enabled = currentPage < totalPages - 1,
+            onClick = onNext
+        )
+    }
+}
+
+@Composable
+private fun PaginationNavButton(
+    text: String,
+    iconStart: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (enabled) PrimaryGreen else Color(0xFFE8E2DA),
+        contentColor = if (enabled) Color.White else Color(0xFF81776E),
+        shape = RoundedCornerShape(18.dp),
+        modifier = Modifier
+            .height(34.dp)
+            .clickable(enabled = enabled, onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (iconStart) {
+                Icon(Icons.Default.ChevronLeft, contentDescription = null, modifier = Modifier.size(17.dp))
+                Spacer(modifier = Modifier.width(3.dp))
+            }
+            Text(text, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            if (!iconStart) {
+                Spacer(modifier = Modifier.width(3.dp))
+                Icon(Icons.Default.ChevronRight, contentDescription = null, modifier = Modifier.size(17.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PaginationPageButton(
+    page: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        color = if (selected) PrimaryGreen else Color(0xFFE8E2DA),
+        contentColor = if (selected) Color.White else Color(0xFF81776E),
+        shape = CircleShape,
+        modifier = Modifier
+            .size(34.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = "${page + 1}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -493,7 +711,7 @@ fun FilterChip(selected: Boolean, label: String, onClick: () -> Unit) {
 }
 
 @Composable
-fun ReportItem(report: Report, onClick: () -> Unit) {
+fun ReportItem(report: Report, onClick: () -> Unit, onRegularize: () -> Unit) {
     val statusColor = when (report.status) {
         ReportStatus.VALIDATED -> Color(0xFF065F46)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
@@ -537,7 +755,28 @@ fun ReportItem(report: Report, onClick: () -> Unit) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(text = report.banco, color = Color.Gray, fontSize = 12.sp)
                 Spacer(modifier = Modifier.weight(1f))
-                Text(text = report.hora, color = Color.Gray, fontSize = 10.sp)
+                Text(text = "${report.fecha} ${report.hora}", color = Color.Gray, fontSize = 10.sp)
+            }
+            if (report.status == ReportStatus.REJECTED) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = onRegularize,
+                    enabled = !report.imageUrl.isNullOrBlank(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PrimaryGreen,
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFFE9E4DC),
+                        disabledContentColor = Color(0xFF81776E)
+                    )
+                ) {
+                    Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Regularizar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
             }
         }
     }
@@ -547,7 +786,7 @@ fun ReportItem(report: Report, onClick: () -> Unit) {
 @Composable
 private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.65f
+    val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.88f
     val statusColor = when (report.status) {
         ReportStatus.VALIDATED -> Color(0xFF065F46)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
@@ -642,50 +881,84 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
                 }
             }
 
-            if (!report.imageUrl.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = BorderStroke(1.dp, Color(0xFFE6E0D8))
-                ) {
-                    Column {
-                        if (report.imageUrl.isPdfVoucher()) {
-                            PdfReportPreview(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(150.dp)
-                            )
-                        } else {
-                            coil.compose.AsyncImage(
-                                model = report.imageUrl,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(150.dp),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                            )
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFFF1EEE9))
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (report.imageUrl.isPdfVoucher()) Icons.Default.PictureAsPdf else Icons.Default.CameraAlt,
-                                contentDescription = null,
-                                tint = Color.Gray,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(report.voucherName ?: "Voucher", color = Color.Gray, fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(16.dp))
+            ReportVoucherSection(report)
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun ReportVoucherSection(report: Report) {
+    Text("Voucher adjunto", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+    Spacer(modifier = Modifier.height(8.dp))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, Color(0xFFE6E0D8))
+    ) {
+        Column {
+            val imageUrl = report.imageUrl
+            when {
+                imageUrl.isNullOrBlank() -> MissingVoucherPreview(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(170.dp)
+                )
+                imageUrl.isPdfVoucher() -> PdfReportPreview(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(170.dp)
+                )
+                else -> coil.compose.AsyncImage(
+                    model = imageUrl,
+                    contentDescription = "Voucher ${report.solicitudNum}",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(170.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFF1EEE9))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    when {
+                        imageUrl.isNullOrBlank() -> Icons.Default.ImageNotSupported
+                        imageUrl.isPdfVoucher() -> Icons.Default.PictureAsPdf
+                        else -> Icons.Default.CameraAlt
+                    },
+                    contentDescription = null,
+                    tint = Color.Gray,
+                    modifier = Modifier.size(15.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(report.voucherName ?: "Voucher", color = Color.Gray, fontSize = 11.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissingVoucherPreview(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.background(Color(0xFFF7F0E8)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Default.ImageNotSupported,
+                contentDescription = null,
+                tint = Color(0xFF81776E),
+                modifier = Modifier.size(44.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Sin voucher adjunto", color = Color(0xFF4C463F), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -780,6 +1053,14 @@ private fun DetailRows(rows: List<Pair<String, String>>) {
             }
         }
     }
+}
+
+private fun reportDateTimeMillis(report: Report): Long {
+    return runCatching {
+        SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).apply {
+            isLenient = false
+        }.parse("${report.fecha} ${report.hora}")?.time
+    }.getOrNull() ?: Long.MIN_VALUE
 }
 
 private fun exportReportsForExcel(context: Context, reports: List<Report>) {
@@ -1187,20 +1468,26 @@ fun getInitialReports(): List<Report> {
             id = "r1", solicitudNum = "#001",
             empresa = "JCH COMERCIAL SA", cliente = "Carlos Mendoza", banco = "BCP",
             fecha = "17/06/2026", hora = "14:22", status = ReportStatus.VALIDATED,
-            importe = "PEN 800.00", operacion = "2545539", sucursal = "PIURA AV. SANCHEZ CERRO 1222"
+            importe = "PEN 800.00", operacion = "2545539", sucursal = "PIURA AV. SANCHEZ CERRO 1222",
+            imageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=640&h=420&fit=crop&auto=format",
+            voucherName = "Voucher_001.jpg"
         ),
         Report(
             id = "r2", solicitudNum = "#002",
             empresa = "EVOLUTION CAR SERVICE", cliente = "Diana Flores", banco = "INTERBANK",
             fecha = "17/06/2026", hora = "15:10", status = ReportStatus.PENDING,
-            sucursal = "PIURA AV. SANCHEZ CERRO 1222"
+            sucursal = "PIURA AV. SANCHEZ CERRO 1222",
+            imageUrl = "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=640&h=420&fit=crop&auto=format",
+            voucherName = "Voucher_002.jpg"
         ),
         Report(
             id = "r3", solicitudNum = "#003",
             empresa = "JCH COMERCIAL SA", cliente = "Pedro Ruiz", banco = "SCOTIABANK",
             fecha = "16/06/2026", hora = "09:45", status = ReportStatus.REJECTED,
             mensajeValidacion = "Voucher ilegible. Reenvie con mejor calidad de imagen.",
-            sucursal = "PIURA AV. SANCHEZ CERRO 1222"
+            sucursal = "PIURA AV. SANCHEZ CERRO 1222",
+            imageUrl = "https://images.unsplash.com/photo-1567427017947-545c5f8d16ad?w=280&h=180&fit=crop&auto=format",
+            voucherName = "Voucher_003.jpg"
         )
     )
 }
