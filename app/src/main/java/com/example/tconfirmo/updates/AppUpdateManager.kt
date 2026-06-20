@@ -110,6 +110,9 @@ class AppUpdateManager(private val context: Context) {
             requestMethod = "GET"
         }
         return try {
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                error("No se pudo consultar la informacion de actualizacion.")
+            }
             connection.inputStream.bufferedReader().use { it.readText() }
         } finally {
             connection.disconnect()

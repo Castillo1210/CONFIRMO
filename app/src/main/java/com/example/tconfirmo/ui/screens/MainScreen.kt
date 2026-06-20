@@ -776,13 +776,24 @@ fun ReportItem(
         ReportStatus.REJECTED -> Color(0xFFFEE2E2)
         ReportStatus.PENDING -> Color(0xFFFEF3C7)
     }
+    val cardBg = when (report.status) {
+        ReportStatus.VALIDATED -> Color(0xFFF0FDF4)
+        ReportStatus.REJECTED -> Color(0xFFFFF1F2)
+        ReportStatus.PENDING -> Color(0xFFFFFBEB)
+    }
+    val cardBorder = when (report.status) {
+        ReportStatus.VALIDATED -> Color(0xFF86EFAC)
+        ReportStatus.REJECTED -> Color(0xFFFCA5A5)
+        ReportStatus.PENDING -> Color(0xFFFCD34D)
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.dp, cardBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -799,17 +810,17 @@ fun ReportItem(
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = report.empresa, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(text = report.cliente, color = Color.Gray, fontSize = 12.sp)
+            Text(text = report.empresa, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF252321))
+            Text(text = report.cliente, color = Color(0xFF6B6258), fontSize = 12.sp)
             Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Color(0xFFF1F1F1))
+            HorizontalDivider(color = cardBorder.copy(alpha = 0.45f))
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF6B6258), modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = report.banco, color = Color.Gray, fontSize = 12.sp)
+                Text(text = report.banco, color = Color(0xFF6B6258), fontSize = 12.sp)
                 Spacer(modifier = Modifier.weight(1f))
-                Text(text = report.hora, color = Color.Gray, fontSize = 10.sp)
+                Text(text = report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
             }
             if (report.status == ReportStatus.REJECTED) {
                 Spacer(modifier = Modifier.height(12.dp))
@@ -839,7 +850,7 @@ fun ReportItem(
 @Composable
 private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.65f
+    val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
     val statusColor = when (report.status) {
         ReportStatus.VALIDATED -> Color(0xFF065F46)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
@@ -958,14 +969,14 @@ private fun ReportVoucherSection(report: Report) {
                 imageUrl.isNullOrBlank() -> MissingVoucherPreview(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
+                        .height(520.dp)
                 )
 
                 imageUrl.isPdfVoucher() -> PdfReportPreview(
                     uriString = imageUrl,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
+                        .height(520.dp)
                 )
 
                 else -> coil.compose.AsyncImage(
@@ -973,8 +984,9 @@ private fun ReportVoucherSection(report: Report) {
                     contentDescription = "Voucher ${report.solicitudNum}",
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        .height(520.dp)
+                        .background(Color(0xFFF7F0E8)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
             Row(
