@@ -52,7 +52,7 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
 
     Card(
         modifier = Modifier
-            .width(260.dp)
+            .fillMaxWidth(0.88f)
             .padding(vertical = 4.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
@@ -63,9 +63,10 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
             Box {
                 if (card.imageUrl.isPdfVoucher()) {
                     PdfVoucherPreview(
+                        uriString = card.imageUrl,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(130.dp)
+                            .height(420.dp)
                     )
                 } else {
                     AsyncImage(
@@ -73,8 +74,9 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(130.dp),
-                        contentScale = ContentScale.Crop
+                            .height(420.dp)
+                            .background(Color(0xFFF7F0E8)),
+                        contentScale = ContentScale.Fit
                     )
                 }
                 Surface(
@@ -135,22 +137,8 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PdfVoucherPreview(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.background(Color(0xFFF7F0E8)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(
-                Icons.Default.PictureAsPdf,
-                contentDescription = null,
-                tint = Color(0xFFB71C1C),
-                modifier = Modifier.size(42.dp)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text("PDF adjunto", color = Color(0xFF4C463F), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        }
-    }
+private fun PdfVoucherPreview(uriString: String, modifier: Modifier = Modifier) {
+    PdfPreview(uriString = uriString, modifier = modifier, label = "PDF adjunto")
 }
 
 private fun String.isPdfVoucher(): Boolean {
@@ -274,7 +262,11 @@ fun StructuredBotBubble(data: StructuredBotData, time: String) {
 }
 
 @Composable
-fun MessageBubble(message: ChatMessage, isSearchMatch: Boolean = false) {
+fun MessageBubble(
+    message: ChatMessage,
+    isSearchMatch: Boolean = false,
+    onVoucherClick: (VoucherCard) -> Unit = {}
+) {
     val isUser = message.from == MessageFrom.USER
     val bubbleShape = if (isUser) {
         RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 5.dp)
@@ -295,7 +287,10 @@ fun MessageBubble(message: ChatMessage, isSearchMatch: Boolean = false) {
     ) {
         when {
             message.voucherCard != null -> {
-                VoucherCardBubble(card = message.voucherCard, onClick = {})
+                VoucherCardBubble(
+                    card = message.voucherCard,
+                    onClick = { onVoucherClick(message.voucherCard) }
+                )
                 Row(
                     modifier = Modifier.padding(top = 2.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically

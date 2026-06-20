@@ -19,6 +19,11 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField(
+            "String",
+            "UPDATE_METADATA_URL",
+            "\"https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/version.json\""
+        )
     }
 
     buildTypes {
@@ -34,6 +39,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 

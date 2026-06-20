@@ -74,6 +74,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.rememberAsyncImagePainter
 import com.example.tconfirmo.data.DepositDraft
+import com.example.tconfirmo.ui.components.PdfPreview
 import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
 import com.example.tconfirmo.ui.theme.PrimaryGreen
 import com.example.tconfirmo.ui.theme.TConfirmoTheme
@@ -119,6 +120,7 @@ fun RegisterSheet(
     var editingItemId by remember { mutableStateOf<String?>(null) }
     var pendingSubmit by remember { mutableStateOf<List<DepositDraft>>(emptyList()) }
     var pickerTarget by remember { mutableStateOf<PickerTarget?>(null) }
+    var processedInitialVoucherCount by remember { mutableStateOf(0) }
 
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -139,6 +141,7 @@ fun RegisterSheet(
         items = emptyList()
         pendingSubmit = emptyList()
         pickerTarget = null
+        processedInitialVoucherCount = 0
         mode = RegisterMode.Form
         resetDraft()
     }
@@ -165,8 +168,37 @@ fun RegisterSheet(
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) cameraLauncher.launch(null)
     }
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) draftImage = VoucherImage.Gallery(uri)
+    fun addIncomingVoucherUris(
+        uris: List<Uri>,
+        empresa: String = "",
+        banco: String = "",
+        cliente: String = ""
+    ) {
+        if (uris.isEmpty()) return
+        val incomingItems = uris.map { uri ->
+            DepositCartItem(
+                image = uri.toVoucherImage(context),
+                empresa = empresa,
+                banco = banco,
+                cliente = cliente
+            )
+        }
+        items = items + incomingItems
+        resetDraft()
+        mode = RegisterMode.Cart
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
+        when (uris.size) {
+            0 -> Unit
+            1 -> draftImage = uris.first().toVoucherImage(context)
+            else -> addIncomingVoucherUris(
+                uris = uris,
+                empresa = draftEmpresa,
+                banco = draftBanco,
+                cliente = draftCliente
+            )
+        }
     }
 
     fun openCamera() {
@@ -194,41 +226,36 @@ fun RegisterSheet(
     }
 
     LaunchedEffect(initialVoucherUris) {
-        if (initialVoucherUris.isNotEmpty()) {
-            val incomingItems = initialVoucherUris.map { uri ->
-                DepositCartItem(
-                    image = uri.toVoucherImage(context),
-                    empresa = "",
-                    banco = "",
-                    cliente = ""
-                )
-            }
-            items = items + incomingItems
-            mode = RegisterMode.Cart
-            onInitialVouchersConsumed(initialVoucherUris.size)
+        val newVoucherUris = initialVoucherUris.drop(processedInitialVoucherCount)
+        if (newVoucherUris.isNotEmpty()) {
+            addIncomingVoucherUris(newVoucherUris)
+            processedInitialVoucherCount += newVoucherUris.size
+            onInitialVouchersConsumed(newVoucherUris.size)
         }
     }
 
     LaunchedEffect(initialDepositDrafts) {
         if (initialDepositDrafts.isNotEmpty()) {
-            val incomingItems = initialDepositDrafts.map { draft ->
+            val draftsWithVoucher = initialDepositDrafts.filter { it.imageUri.isNotBlank() }
+            val incomingItems = draftsWithVoucher.map { draft ->
                 DepositCartItem(
-                    image = draft.imageUri.toVoucherImage(context),
+                    image = draft.imageUri.toVoucherImage(),
                     empresa = draft.empresa,
                     banco = draft.banco,
                     cliente = draft.cliente
                 )
             }
-            items = incomingItems
-            incomingItems.firstOrNull()?.let { item ->
-                draftImage = item.image
-                draftEmpresa = item.empresa
-                draftBanco = item.banco
-                draftCliente = item.cliente
-                editingItemId = item.id
-                mode = RegisterMode.Form
-            } ?: run {
+            if (incomingItems.isNotEmpty()) {
+                items = items + incomingItems
                 mode = RegisterMode.Cart
+            } else {
+                val draft = initialDepositDrafts.first()
+                draftImage = null
+                draftEmpresa = draft.empresa
+                draftBanco = draft.banco
+                draftCliente = draft.cliente
+                editingItemId = null
+                mode = RegisterMode.Form
             }
             onInitialDepositDraftsConsumed(initialDepositDrafts.size)
         }
@@ -955,7 +982,11 @@ private fun VoucherImageView(image: VoucherImage, modifier: Modifier = Modifier)
     when (image) {
         is VoucherImage.Camera -> Image(image.bitmap.asImageBitmap(), null, modifier, contentScale = ContentScale.Crop)
         is VoucherImage.Gallery -> Image(rememberAsyncImagePainter(image.uri), null, modifier, contentScale = ContentScale.Crop)
-        is VoucherImage.Pdf -> PdfVoucherView(modifier)
+        is VoucherImage.Pdf -> PdfPreview(
+            uriString = image.uri.toString(),
+            modifier = modifier,
+            label = "Voucher PDF adjunto"
+        )
     }
 }
 
@@ -1018,16 +1049,9 @@ private fun Uri.toVoucherImage(context: Context): VoucherImage {
     }
 }
 
-private fun String.toVoucherImage(context: Context): VoucherImage {
-    val uri = when {
-        startsWith("content://", ignoreCase = true) -> Uri.parse(this)
-        startsWith("file://", ignoreCase = true) -> Uri.parse(this)
-        startsWith("http://", ignoreCase = true) -> Uri.parse(this)
-        startsWith("https://", ignoreCase = true) -> Uri.parse(this)
-        else -> Uri.fromFile(File(this))
-    }
-    val mimeType = runCatching { context.contentResolver.getType(uri) }.getOrNull()
-    return if (isPdfVoucher(uri, mimeType)) {
+private fun String.toVoucherImage(): VoucherImage {
+    val uri = Uri.parse(this)
+    return if (this.substringBefore('?').endsWith(".pdf", ignoreCase = true)) {
         VoucherImage.Pdf(uri)
     } else {
         VoucherImage.Gallery(uri)
