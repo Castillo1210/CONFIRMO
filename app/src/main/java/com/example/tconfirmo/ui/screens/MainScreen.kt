@@ -797,16 +797,45 @@ fun ReportItem(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(text = report.solicitudNum, fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 12.sp)
-                Surface(color = statusBg, shape = RoundedCornerShape(12.dp)) {
-                    Text(
-                        text = report.status.spanishLabel(),
-                        color = statusColor,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                    )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (report.status == ReportStatus.VALIDATED) {
+                        Text(report.fecha, color = Color(0xFF6B6258), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
+                    }
+                    Surface(color = statusBg, shape = RoundedCornerShape(12.dp)) {
+                        Text(
+                            text = report.status.spanishLabel(),
+                            color = statusColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                    if (report.status == ReportStatus.REJECTED) {
+                        Surface(
+                            color = PrimaryGreen,
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.clickable(onClick = onRegularize)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Regularizar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                            }
+                        }
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -819,27 +848,16 @@ fun ReportItem(
                 Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF6B6258), modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(text = report.banco, color = Color(0xFF6B6258), fontSize = 12.sp)
-                Spacer(modifier = Modifier.weight(1f))
-                Text(text = report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
-            }
-            if (report.status == ReportStatus.REJECTED) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(
-                    onClick = onRegularize,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(42.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PrimaryGreen,
-                        contentColor = Color.White,
-                        disabledContainerColor = Color(0xFFE9E4DC),
-                        disabledContentColor = Color(0xFF81776E)
-                    )
-                ) {
-                    Icon(Icons.Default.EditNote, contentDescription = null, modifier = Modifier.size(17.dp))
+                if (report.status == ReportStatus.VALIDATED) {
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text("Anexo: ${report.anexo ?: "RECAU MN"}", color = Color(0xFF252321), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Regularizar", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Importe: ${report.importe ?: "-"}", color = Color(0xFF252321), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Op: ${report.operacion ?: "-"}", color = Color(0xFF252321), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                } else {
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(text = report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
                 }
             }
         }
