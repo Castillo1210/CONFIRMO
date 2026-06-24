@@ -85,7 +85,7 @@ private fun UpdateAvailableDialog(
                 }
                 if (update.releaseNotes.isNotBlank()) {
                     Spacer(modifier = Modifier.height(10.dp))
-                    Text(update.releaseNotes, fontSize = 13.sp, color = Color(0xFF5F5A52))
+                    Text(update.releaseNotes, fontSize = 13.sp, color = Color(0xFF344171))
                 }
             }
         },
@@ -148,12 +148,12 @@ private fun UpdateWaitingScreen(
                     text = title,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = Color(0xFF252321)
+                    color = Color(0xFF17265F)
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = message,
-                    color = Color(0xFF5F5A52),
+                    color = Color(0xFF344171),
                     fontSize = 13.sp
                 )
                 if (progress != null) {
@@ -162,7 +162,7 @@ private fun UpdateWaitingScreen(
                         progress = { progress },
                         modifier = Modifier.fillMaxWidth(),
                         color = PrimaryGreen,
-                        trackColor = Color(0xFFE9E4DC)
+                        trackColor = Color(0xFFE7EAF4)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("${(progress * 100).toInt()}%", style = MaterialTheme.typography.labelMedium)

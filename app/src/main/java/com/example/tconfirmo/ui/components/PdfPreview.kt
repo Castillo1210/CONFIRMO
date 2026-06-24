@@ -53,7 +53,7 @@ fun PdfPreview(
     }
 
     Box(
-        modifier = modifier.background(Color(0xFFF7F0E8)),
+        modifier = modifier.background(Color(0xFFF6F7FB)),
         contentAlignment = Alignment.Center
     ) {
         val bitmap = preview
@@ -73,7 +73,7 @@ fun PdfPreview(
                     modifier = Modifier.size(42.dp)
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                Text(label, color = Color(0xFF4C463F), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text(label, color = Color(0xFF17265F), fontSize = 12.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

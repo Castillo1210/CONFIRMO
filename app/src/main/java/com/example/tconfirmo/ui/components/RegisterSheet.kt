@@ -10,6 +10,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,10 +24,13 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -63,6 +67,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -81,6 +86,8 @@ import com.example.tconfirmo.ui.theme.TConfirmoTheme
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class RegisterMode { Cart, Form, Success }
 private enum class PickerTarget { Empresa, Banco }
@@ -280,7 +287,7 @@ fun RegisterSheet(
                 modifier = Modifier
                     .padding(top = 10.dp, bottom = 6.dp)
                     .size(width = 38.dp, height = 4.dp)
-                    .background(Color(0xFFE2DDD5), RoundedCornerShape(99.dp))
+                    .background(Color(0xFFE7EAF4), RoundedCornerShape(99.dp))
             )
         }
     ) {
@@ -400,13 +407,13 @@ private fun CartContent(
                     text = "Registro de depositos",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF252321),
+                    color = Color(0xFF17265F),
                     fontFamily = PlusJakartaSansFamily
                 )
                 Text(
                     text = "${items.size} deposito${if (items.size == 1) "" else "s"} en el registro",
                     fontSize = 12.sp,
-                    color = Color(0xFF81776E)
+                    color = Color(0xFF6A7394)
                 )
             }
             CircleIconButton(icon = Icons.Default.Close, onClick = onClose, contentDescription = "Cerrar")
@@ -438,7 +445,7 @@ private fun CartContent(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(BorderStroke(1.dp, Color(0xFFE8E2DA)))
+                .border(BorderStroke(1.dp, Color(0xFFE7EAF4)))
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -464,8 +471,8 @@ private fun CartContent(
                 enabled = canSubmit,
                 shape = RoundedCornerShape(16.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (canSubmit) PrimaryGreen else Color(0xFFE9E4DC),
-                    contentColor = if (canSubmit) Color.White else Color(0xFF81776E)
+                    containerColor = if (canSubmit) PrimaryGreen else Color(0xFFE7EAF4),
+                    contentColor = if (canSubmit) Color.White else Color(0xFF6A7394)
                 )
             ) {
                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -509,6 +516,7 @@ private fun NewDepositContent(
             .fillMaxWidth()
             .fillMaxHeight(0.88f)
             .padding(horizontal = 24.dp)
+            .imePadding()
             .verticalScroll(rememberScrollState())
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -519,13 +527,13 @@ private fun NewDepositContent(
                     text = if (isEditing) "Modificar deposito" else "Nuevo deposito",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF252321),
+                    color = Color(0xFF17265F),
                     fontFamily = PlusJakartaSansFamily
                 )
                 Text(
                     if (isEditing) "Actualiza los datos del deposito" else "Completa los datos y adjunta el voucher",
                     fontSize = 11.sp,
-                    color = Color(0xFF81776E)
+                    color = Color(0xFF6A7394)
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
@@ -555,8 +563,8 @@ private fun NewDepositContent(
             enabled = canAdd,
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = if (canAdd) PrimaryGreen else Color(0xFFE9E4DC),
-                contentColor = if (canAdd) Color.White else Color(0xFF81776E)
+                containerColor = if (canAdd) PrimaryGreen else Color(0xFFE7EAF4),
+                contentColor = if (canAdd) Color.White else Color(0xFF6A7394)
             )
         ) {
             Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -583,7 +591,7 @@ private fun SuccessContent(count: Int) {
             Surface(
                 modifier = Modifier.size(80.dp),
                 shape = RoundedCornerShape(40.dp),
-                color = Color(0xFFFFF1B8)
+                color = Color(0xFFFFF6B8)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -596,17 +604,17 @@ private fun SuccessContent(count: Int) {
             }
             Spacer(modifier = Modifier.height(18.dp))
             Text(
-                text = if (count == 1) "¡Solicitud Enviada!" else "¡Solicitudes Enviadas!",
+                text = if (count == 1) "Â¡Solicitud Enviada!" else "Â¡Solicitudes Enviadas!",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF252321),
+                color = Color(0xFF17265F),
                 fontFamily = PlusJakartaSansFamily
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = "Apareceran en el Chat y en Reportes.",
                 fontSize = 14.sp,
-                color = Color(0xFF81776E)
+                color = Color(0xFF6A7394)
             )
         }
     }
@@ -624,8 +632,8 @@ private fun DepositSummaryCard(
             .fillMaxWidth()
             .clickable(onClick = onEdit),
         shape = RoundedCornerShape(16.dp),
-        color = Color(0xFFF8F5F0),
-        border = BorderStroke(1.dp, Color(0xFFE0D8CE))
+        color = Color(0xFFF6F7FB),
+        border = BorderStroke(1.dp, Color(0xFFE7EAF4))
     ) {
         Row(modifier = Modifier.padding(0.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -659,20 +667,20 @@ private fun DepositSummaryCard(
                     item.empresa.ifBlank { "Seleccionar empresa" },
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (item.empresa.isBlank()) Color(0xFF9A6A00) else Color(0xFF252321)
+                    color = if (item.empresa.isBlank()) Color(0xFF17265F) else Color(0xFF17265F)
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = item.cliente.ifBlank { "Sin cliente" },
                     fontSize = 12.sp,
-                    color = Color(0xFF81776E)
+                    color = Color(0xFF6A7394)
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 val hasBank = item.banco.isNotBlank()
-                Surface(shape = RoundedCornerShape(8.dp), color = if (hasBank) Color(0xFFDFF6C4) else Color(0xFFFFE8B8)) {
+                Surface(shape = RoundedCornerShape(8.dp), color = if (hasBank) Color(0xFFFFF6B8) else Color(0xFFFFF6B8)) {
                     Text(
                         item.banco.ifBlank { "Seleccionar banco" },
-                        color = if (hasBank) Color(0xFF0B7D45) else Color(0xFF9A6A00),
+                        color = if (hasBank) Color(0xFF17265F) else Color(0xFF17265F),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -680,7 +688,7 @@ private fun DepositSummaryCard(
                 }
             }
             IconButton(onClick = onRemove, modifier = Modifier.size(42.dp)) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar", tint = Color(0xFF7D736A), modifier = Modifier.size(19.dp))
+                Icon(Icons.Default.DeleteOutline, contentDescription = "Eliminar", tint = Color(0xFF6A7394), modifier = Modifier.size(19.dp))
             }
         }
     }
@@ -699,14 +707,14 @@ private fun VoucherPicker(
             .fillMaxWidth()
             .height(465.dp)
             .clip(RoundedCornerShape(16.dp))
-            .background(Color(0xFFE9E4DC)),
+            .background(Color(0xFFE7EAF4)),
         contentAlignment = Alignment.Center
     ) {
         if (image == null) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.InsertPhoto, contentDescription = null, tint = Color(0xFFB8B0A7), modifier = Modifier.size(42.dp))
+                Icon(Icons.Default.InsertPhoto, contentDescription = null, tint = Color(0xFF9EA6C4), modifier = Modifier.size(42.dp))
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Sin voucher adjunto", fontSize = 13.sp, color = Color(0xFF81776E))
+                Text("Sin voucher adjunto", fontSize = 13.sp, color = Color(0xFF6A7394))
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     SmallActionButton("Camara", Icons.Default.CameraAlt, onCamera, filled = true)
@@ -755,12 +763,12 @@ private fun EmptyCart() {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        color = Color(0xFFF8F5F0),
-        border = BorderStroke(1.dp, Color(0xFFE0D8CE))
+        color = Color(0xFFF6F7FB),
+        border = BorderStroke(1.dp, Color(0xFFE7EAF4))
     ) {
         Text(
             text = "Aun no hay depositos. Agrega una foto del voucher y completa sus datos.",
-            color = Color(0xFF81776E),
+            color = Color(0xFF6A7394),
             fontSize = 13.sp,
             modifier = Modifier.padding(16.dp)
         )
@@ -787,21 +795,21 @@ private fun SelectorButton(
                 ),
                 RoundedCornerShape(16.dp)
             )
-            .background(Color(0xFFE9E4DC))
+            .background(Color(0xFFE7EAF4))
             .clickable(onClick = onClick)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = if (value.isBlank()) Color(0xFF81776E) else PrimaryGreen, modifier = Modifier.size(18.dp))
+        Icon(icon, contentDescription = null, tint = if (value.isBlank()) Color(0xFF6A7394) else PrimaryGreen, modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = value.ifBlank { placeholder },
-            color = if (value.isBlank()) Color(0xFF81776E) else Color(0xFF252321),
+            color = if (value.isBlank()) Color(0xFF6A7394) else Color(0xFF17265F),
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f)
         )
-        Icon(Icons.Default.ExpandMore, contentDescription = null, tint = Color(0xFF81776E), modifier = Modifier.size(20.dp))
+        Icon(Icons.Default.ExpandMore, contentDescription = null, tint = Color(0xFF6A7394), modifier = Modifier.size(20.dp))
     }
 }
 
@@ -824,7 +832,7 @@ private fun OptionPickerSheet(
                 modifier = Modifier
                     .padding(top = 10.dp, bottom = 8.dp)
                     .size(width = 38.dp, height = 4.dp)
-                    .background(Color(0xFFE2DDD5), RoundedCornerShape(99.dp))
+                    .background(Color(0xFFE7EAF4), RoundedCornerShape(99.dp))
             )
         }
     ) {
@@ -843,7 +851,7 @@ private fun OptionPickerSheet(
                 Spacer(modifier = Modifier.width(12.dp))
                 Text(
                     text = title,
-                    color = Color(0xFF252321),
+                    color = Color(0xFF17265F),
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PlusJakartaSansFamily,
@@ -859,7 +867,7 @@ private fun OptionPickerSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(62.dp)
-                            .background(if (isSelected) Color(0xFFFFF4C7) else Color.White)
+                            .background(if (isSelected) Color(0xFFFFF6B8) else Color.White)
                             .clickable { onSelected(option) }
                             .padding(horizontal = 24.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -867,21 +875,21 @@ private fun OptionPickerSheet(
                         Surface(
                             modifier = Modifier.size(32.dp),
                             shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) PrimaryGreen else Color(0xFFEDE8E0)
+                            color = if (isSelected) PrimaryGreen else Color(0xFFE7EAF4)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Text(
                                     text = option.take(2).uppercase(),
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else Color(0xFFB8B0A7)
+                                    color = if (isSelected) Color.White else Color(0xFF9EA6C4)
                                 )
                             }
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Text(
                             text = option,
-                            color = Color(0xFF252321),
+                            color = Color(0xFF17265F),
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.weight(1f)
@@ -902,7 +910,7 @@ private fun OptionPickerSheet(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(Color(0xFFF0EDE8))
+                            .background(Color(0xFFF6F7FB))
                     )
                 }
             }
@@ -910,23 +918,36 @@ private fun OptionPickerSheet(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ClientField(value: String, onValueChange: (String) -> Unit) {
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
     TextField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp),
+            .height(54.dp)
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    scope.launch {
+                        delay(250)
+                        bringIntoViewRequester.bringIntoView()
+                    }
+                }
+            },
         shape = RoundedCornerShape(16.dp),
         leadingIcon = {
-            Icon(Icons.Default.Person, contentDescription = null, tint = if (value.isBlank()) Color(0xFF81776E) else PrimaryGreen, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Person, contentDescription = null, tint = if (value.isBlank()) Color(0xFF6A7394) else PrimaryGreen, modifier = Modifier.size(18.dp))
         },
-        placeholder = { Text("Nombre del cliente", color = Color(0xFF81776E), fontSize = 14.sp) },
+        placeholder = { Text("Nombre del cliente", color = Color(0xFF6A7394), fontSize = 14.sp) },
         singleLine = true,
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color(0xFFE9E4DC),
-            unfocusedContainerColor = Color(0xFFE9E4DC),
+            focusedContainerColor = Color(0xFFE7EAF4),
+            unfocusedContainerColor = Color(0xFFE7EAF4),
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent
@@ -957,9 +978,9 @@ private fun SmallActionButton(
                 .padding(horizontal = horizontalPadding, vertical = verticalPadding),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(icon, contentDescription = null, tint = if (filled) Color.White else Color(0xFF4C463F), modifier = Modifier.size(iconSize))
+            Icon(icon, contentDescription = null, tint = if (filled) Color.White else Color(0xFF17265F), modifier = Modifier.size(iconSize))
             Spacer(modifier = Modifier.width(6.dp))
-            Text(label, color = if (filled) Color.White else Color(0xFF4C463F), fontSize = textSize, fontWeight = FontWeight.Bold)
+            Text(label, color = if (filled) Color.White else Color(0xFF17265F), fontSize = textSize, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -970,9 +991,9 @@ private fun CircleIconButton(
     onClick: () -> Unit,
     contentDescription: String
 ) {
-    Surface(modifier = Modifier.size(36.dp), shape = RoundedCornerShape(18.dp), color = Color(0xFFECE7DF)) {
+    Surface(modifier = Modifier.size(36.dp), shape = RoundedCornerShape(18.dp), color = Color(0xFFE7EAF4)) {
         IconButton(onClick = onClick) {
-            Icon(icon, contentDescription = contentDescription, tint = Color(0xFF4C463F), modifier = Modifier.size(18.dp))
+            Icon(icon, contentDescription = contentDescription, tint = Color(0xFF17265F), modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -993,7 +1014,7 @@ private fun VoucherImageView(image: VoucherImage, modifier: Modifier = Modifier)
 @Composable
 private fun PdfVoucherView(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.background(Color(0xFFF7F0E8)),
+        modifier = modifier.background(Color(0xFFF6F7FB)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1012,9 +1033,9 @@ private fun PdfVoucherView(modifier: Modifier = Modifier) {
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Text("Voucher PDF adjunto", color = Color(0xFF4C463F), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("Voucher PDF adjunto", color = Color(0xFF17265F), fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Se registrara como documento", color = Color(0xFF81776E), fontSize = 12.sp)
+            Text("Se registrara como documento", color = Color(0xFF6A7394), fontSize = 12.sp)
         }
     }
 }

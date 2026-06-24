@@ -5,7 +5,14 @@ import android.content.Intent
 import android.net.Uri
 import android.webkit.MimeTypeMap
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
@@ -33,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -117,7 +125,7 @@ fun MainScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFE8F5E9)
+                            indicatorColor = Color(0xFFFFF6B8)
                         )
                     )
                     NavigationBarItem(
@@ -128,7 +136,7 @@ fun MainScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFE8F5E9)
+                            indicatorColor = Color(0xFFFFF6B8)
                         )
                     )
                     NavigationBarItem(
@@ -139,7 +147,7 @@ fun MainScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFE8F5E9)
+                            indicatorColor = Color(0xFFFFF6B8)
                         )
                     )
                     NavigationBarItem(
@@ -150,7 +158,7 @@ fun MainScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFE8F5E9)
+                            indicatorColor = Color(0xFFFFF6B8)
                         )
                     )
                 }
@@ -158,45 +166,60 @@ fun MainScreen(
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
-            when (selectedTab) {
-                0 -> ReportsTab(
-                    reports = reports,
-                    onRegularize = { report ->
-                        updatePendingSharedVouchers(emptyList())
-                        registerInitialDrafts = listOf(
-                            DepositDraft(
-                                empresa = report.empresa,
-                                banco = report.banco,
-                                cliente = report.cliente,
-                                imageUri = report.imageUrl.orEmpty()
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    val fadeSpec = tween<Float>(durationMillis = 120)
+                    if (targetState > initialState) {
+                        (slideInHorizontally(animationSpec = tween(durationMillis = 180)) { width -> width } + fadeIn(animationSpec = fadeSpec))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(durationMillis = 180)) { width -> -width } + fadeOut(animationSpec = fadeSpec))
+                    } else {
+                        (slideInHorizontally(animationSpec = tween(durationMillis = 180)) { width -> -width } + fadeIn(animationSpec = fadeSpec))
+                            .togetherWith(slideOutHorizontally(animationSpec = tween(durationMillis = 180)) { width -> width } + fadeOut(animationSpec = fadeSpec))
+                    }
+                },
+                label = "MainTabTransition"
+            ) { tab ->
+                when (tab) {
+                    0 -> ReportsTab(
+                        reports = reports,
+                        onRegularize = { report ->
+                            updatePendingSharedVouchers(emptyList())
+                            registerInitialDrafts = listOf(
+                                DepositDraft(
+                                    empresa = report.empresa,
+                                    banco = report.banco,
+                                    cliente = report.cliente,
+                                    imageUri = report.imageUrl.orEmpty()
+                                )
                             )
-                        )
-                        registerResetKey += 1
-                        showRegisterSheet = true
-                    }
-                )
-                1 -> ChatTab(
-                    messages = messages,
-                    onBack = { selectedTab = 0 },
-                    onOpenRegister = {
-                        showRegisterSheet = true
-                    },
-                    onSendMessage = { text ->
-                        val newMsg = ChatMessage(
-                            id = UUID.randomUUID().toString(),
-                            from = MessageFrom.USER,
-                            text = text,
-                            time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
-                            status = MessageStatus.SENT
-                        )
-                        messages = messages + newMsg
-                    }
-                )
-                2 -> NoticesTab()
-                3 -> SettingsTab(
-                    onCheckForUpdates = onCheckForUpdates,
-                    onLogout = onLogout
-                )
+                            registerResetKey += 1
+                            showRegisterSheet = true
+                        }
+                    )
+                    1 -> ChatTab(
+                        messages = messages,
+                        onBack = { selectedTab = 0 },
+                        onOpenRegister = {
+                            showRegisterSheet = true
+                        },
+                        onSendMessage = { text ->
+                            val newMsg = ChatMessage(
+                                id = UUID.randomUUID().toString(),
+                                from = MessageFrom.USER,
+                                text = text,
+                                time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
+                                status = MessageStatus.SENT
+                            )
+                            messages = messages + newMsg
+                        }
+                    )
+                    2 -> NoticesTab()
+                    3 -> SettingsTab(
+                        onCheckForUpdates = onCheckForUpdates,
+                        onLogout = onLogout
+                    )
+                }
             }
         }
 
@@ -349,7 +372,7 @@ fun ChatTab(
                     )
                     Text(
                         "en linea - respuesta automatica",
-                        color = Color(0xFFD1FAE5),
+                        color = Color(0xFFFFF6B8),
                         fontSize = 11.sp,
                         lineHeight = 11.sp
                     )
@@ -420,6 +443,7 @@ fun ChatTab(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
+                    .imePadding()
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Surface(
@@ -588,7 +612,7 @@ private fun VoucherImageDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight(0.88f),
-            color = Color(0xFF11100E),
+            color = Color(0xFF17265F),
             shape = RoundedCornerShape(22.dp)
         ) {
             Column {
@@ -675,7 +699,7 @@ fun ReportsTab(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F4EE))) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         // Header
         Box(
             modifier = Modifier
@@ -692,7 +716,7 @@ fun ReportsTab(
                         fontSize = 18.sp,
                         fontFamily = PlusJakartaSansFamily
                     )
-                    Text("${reports.size} solicitudes registradas", color = Color(0xFFD1FAE5), fontSize = 12.sp)
+                    Text("${reports.size} solicitudes registradas", color = Color(0xFFFFF6B8), fontSize = 12.sp)
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Surface(
@@ -821,8 +845,8 @@ private fun PaginationPillButton(
     contentDescription: String,
     onClick: () -> Unit
 ) {
-    val background = if (enabled) PrimaryGreen else Color(0xFFF7F5F1)
-    val contentColor = if (enabled) Color.White else Color(0xFFD9D3CA)
+    val background = if (enabled) PrimaryGreen else Color(0xFFF6F7FB)
+    val contentColor = if (enabled) Color.White else Color(0xFF9EA6C4)
 
     Surface(
         color = background,
@@ -859,7 +883,7 @@ private fun PaginationPageButton(
     onClick: () -> Unit
 ) {
     Surface(
-        color = if (selected) PrimaryGreen else Color(0xFFECE7DF),
+        color = if (selected) PrimaryGreen else Color(0xFFE7EAF4),
         shape = CircleShape,
         modifier = Modifier
             .size(36.dp)
@@ -868,7 +892,7 @@ private fun PaginationPageButton(
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = "${page + 1}",
-                color = if (selected) Color.White else Color(0xFF8D877D),
+                color = if (selected) Color.White else Color(0xFF6A7394),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -878,7 +902,33 @@ private fun PaginationPageButton(
 
 @Composable
 private fun NoticesTab() {
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F4EE))) {
+    val notices = listOf(
+        NoticeExample(
+            Icons.Default.Campaign,
+            "VARIACION TIPO DE CAMBIO - REPORTE DE VENTAS 24/06/2026",
+            """
+            Senores Buenos dias
+
+            Se actualiza,
+
+            A partir de este momento
+
+            tipo de cambio considerar en su Reporte de Ventas a partir de este momento 24/06/2026.
+
+            Por favor, informar a sus companeros.
+
+            VENTA       =       3.43
+            COMPRA   =       3.38
+            """.trimIndent()
+        ),
+        NoticeExample(Icons.Default.Warning, "Voucher observado", "Hay comprobantes pendientes de regularizacion en reportes."),
+        NoticeExample(Icons.Default.NotificationsActive, "Nueva actualizacion", "Revisa el boton de actualizar version en ajustes."),
+        NoticeExample(Icons.Default.Security, "Seguridad", "No compartas tus credenciales con otros usuarios."),
+        NoticeExample(Icons.Default.Schedule, "Horario bancario", "Los depositos fuera de horario pueden demorar en confirmarse.")
+    )
+    var selectedNotice by remember { mutableStateOf<NoticeExample?>(null) }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -893,31 +943,138 @@ private fun NoticesTab() {
                     fontSize = 18.sp,
                     fontFamily = PlusJakartaSansFamily
                 )
-                Text("Notificaciones y comunicados", color = Color(0xFFD1FAE5), fontSize = 12.sp)
+                Text("Notificaciones y comunicados", color = Color(0xFFFFF6B8), fontSize = 12.sp)
             }
         }
 
-        Surface(
+        Column(
             modifier = Modifier
                 .padding(16.dp)
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
-            shadowElevation = 2.dp
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            notices.forEach { notice ->
+                NoticeExampleItem(
+                    notice = notice,
+                    onClick = { selectedNotice = notice }
+                )
+            }
+        }
+
+        selectedNotice?.let { notice ->
+            NoticeExampleDialog(
+                notice = notice,
+                onDismiss = { selectedNotice = null }
+            )
+        }
+    }
+}
+
+private data class NoticeExample(
+    val icon: ImageVector,
+    val title: String,
+    val message: String
+)
+
+@Composable
+private fun NoticeExampleItem(
+    notice: NoticeExample,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        color = Color.White,
+        shadowElevation = 2.dp,
+        border = BorderStroke(1.dp, Color(0xFFE7EAF4))
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(38.dp),
+                shape = RoundedCornerShape(14.dp),
+                color = Color(0xFFFFF6B8)
             ) {
-                Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(22.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text("Sin avisos pendientes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("Aqui apareceran las novedades importantes.", color = Color.Gray, fontSize = 12.sp)
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        notice.icon,
+                        contentDescription = null,
+                        tint = PrimaryGreen,
+                        modifier = Modifier.size(21.dp)
+                    )
                 }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    notice.title,
+                    color = Color(0xFF17265F),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+                Text(
+                    notice.message,
+                    color = Color(0xFF6A7394),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
             }
         }
     }
+}
+
+@Composable
+private fun NoticeExampleDialog(
+    notice: NoticeExample,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        onDismissRequest = onDismiss,
+        icon = {
+            Surface(
+                modifier = Modifier.size(46.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFFFFF6B8)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        notice.icon,
+                        contentDescription = null,
+                        tint = PrimaryGreen,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        },
+        title = {
+            Text(
+                notice.title,
+                color = Color(0xFF17265F),
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Text(
+                notice.message,
+                color = Color(0xFF344171),
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+            }
+        },
+        containerColor = Color.White
+    )
 }
 
 @Composable
@@ -945,22 +1102,22 @@ fun ReportItem(
     onRegularize: () -> Unit
 ) {
     val statusColor = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFF065F46)
+        ReportStatus.VALIDATED -> Color(0xFF17265F)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
-        ReportStatus.PENDING -> Color(0xFF92400E)
+        ReportStatus.PENDING -> Color(0xFF17265F)
     }
     val statusBg = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFFD1FAE5)
+        ReportStatus.VALIDATED -> Color(0xFFFFF6B8)
         ReportStatus.REJECTED -> Color(0xFFFEE2E2)
-        ReportStatus.PENDING -> Color(0xFFFEF3C7)
+        ReportStatus.PENDING -> Color(0xFFFFF6B8)
     }
-    val cardBg = Color(0xFFFFFEFC)
+    val cardBg = Color.White
     val statusAccent = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFF22C55E)
+        ReportStatus.VALIDATED -> Color(0xFF17265F)
         ReportStatus.REJECTED -> Color(0xFFEF4444)
-        ReportStatus.PENDING -> Color(0xFFF97316)
+        ReportStatus.PENDING -> Color(0xFFFFE500)
     }
-    val cardBorder = if (highlighted) statusAccent.copy(alpha = 0.58f) else Color(0xFFE8E1D8)
+    val cardBorder = if (highlighted) statusAccent.copy(alpha = 0.58f) else Color(0xFFE7EAF4)
 
     Card(
         modifier = Modifier
@@ -990,8 +1147,8 @@ fun ReportItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
 
-                        Text(report.fecha, color = Color(0xFF6B6258), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text(report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
+                        Text(report.fecha, color = Color(0xFF344171), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(report.hora, color = Color(0xFF344171), fontSize = 10.sp)
 
                     Surface(color = statusBg, shape = RoundedCornerShape(12.dp)) {
                         Text(
@@ -1021,24 +1178,24 @@ fun ReportItem(
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            Text(text = report.empresa + " - " + report.cliente , fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF252321))
+            Text(text = report.empresa + " - " + report.cliente , fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF17265F))
             Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Color(0xFFEDE7DF))
+            HorizontalDivider(color = Color(0xFFE7EAF4))
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF6B6258), modifier = Modifier.size(14.dp))
+                Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF344171), modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = report.banco, color = Color(0xFF6B6258), fontSize = 12.sp)
+                Text(text = report.banco, color = Color(0xFF344171), fontSize = 12.sp)
                 if (report.status == ReportStatus.VALIDATED) {
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Anexo: ${report.anexo ?: "RECAU MN"}", color = Color(0xFF252321), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("Anexo: ${report.anexo ?: "RECAU MN"}", color = Color(0xFF17265F), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Importe: ${report.importe ?: "-"}", color = Color(0xFF252321), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("Importe: ${report.importe ?: "-"}", color = Color(0xFF17265F), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Op: ${report.operacion ?: "-"}", color = Color(0xFF252321), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Text("Op: ${report.operacion ?: "-"}", color = Color(0xFF17265F), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 } else {
                     Spacer(modifier = Modifier.weight(1f))
-                    Text(text = report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
+                    Text(text = report.hora, color = Color(0xFF344171), fontSize = 10.sp)
                 }
             }
             }
@@ -1052,14 +1209,14 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
     val statusColor = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFF065F46)
+        ReportStatus.VALIDATED -> Color(0xFF17265F)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
-        ReportStatus.PENDING -> Color(0xFF92400E)
+        ReportStatus.PENDING -> Color(0xFF17265F)
     }
     val statusBg = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFFD1FAE5)
+        ReportStatus.VALIDATED -> Color(0xFFFFF6B8)
         ReportStatus.REJECTED -> Color(0xFFFEE2E2)
-        ReportStatus.PENDING -> Color(0xFFFEF3C7)
+        ReportStatus.PENDING -> Color(0xFFFFF6B8)
     }
     val statusLabel = report.status.spanishLabel()
 
@@ -1162,7 +1319,7 @@ private fun ReportVoucherSection(report: Report) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE6E0D8))
+        border = BorderStroke(1.dp, Color(0xFFE7EAF4))
     ) {
         Column {
             when {
@@ -1185,14 +1342,14 @@ private fun ReportVoucherSection(report: Report) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(520.dp)
-                        .background(Color(0xFFF7F0E8)),
+                        .background(Color(0xFFF6F7FB)),
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFF1EEE9))
+                    .background(Color(0xFFF6F7FB))
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1221,18 +1378,18 @@ private fun PdfReportPreview(uriString: String, modifier: Modifier = Modifier) {
 @Composable
 private fun MissingVoucherPreview(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.background(Color(0xFFF7F0E8)),
+        modifier = modifier.background(Color(0xFFF6F7FB)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 Icons.Default.ImageNotSupported,
                 contentDescription = null,
-                tint = Color(0xFF81776E),
+                tint = Color(0xFF6A7394),
                 modifier = Modifier.size(42.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Sin voucher adjunto", color = Color(0xFF4C463F), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Sin voucher adjunto", color = Color(0xFF17265F), fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1247,11 +1404,11 @@ private fun StatusBanner(status: ReportStatus) {
 
     when (status) {
         ReportStatus.VALIDATED -> {
-            bg = Color(0xFFE8F5E9)
+            bg = Color(0xFFFFF6B8)
             icon = Icons.Default.CheckCircle
             title = "DEPOSITO CONFIRMADO"
             subtitle = "Validado por el sistema"
-            color = Color(0xFF1B5E20)
+            color = Color(0xFF17265F)
         }
         ReportStatus.REJECTED -> {
             bg = Color(0xFFFFF3F3)
@@ -1261,11 +1418,11 @@ private fun StatusBanner(status: ReportStatus) {
             color = Color(0xFFB71C1C)
         }
         ReportStatus.PENDING -> {
-            bg = Color(0xFFFFF8E1)
+            bg = Color(0xFFFFF9D6)
             icon = Icons.Default.Schedule
             title = "EN PROCESO"
             subtitle = "Pendiente de validacion por el sistema"
-            color = Color(0xFF795900)
+            color = Color(0xFF17265F)
         }
     }
 
@@ -1283,7 +1440,7 @@ private fun StatusBanner(status: ReportStatus) {
 
 @Composable
 private fun DetailRows(rows: List<Pair<String, String>>) {
-    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = Color(0xFFF7F4EE)) {
+    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = Color.White) {
         Column {
             rows.forEachIndexed { index, row ->
                 Row(
@@ -1295,7 +1452,7 @@ private fun DetailRows(rows: List<Pair<String, String>>) {
                     Text(row.first, color = Color.Gray, fontSize = 12.sp, modifier = Modifier.width(112.dp))
                     Text(
                         row.second,
-                        color = Color(0xFF1C1B1F),
+                        color = Color(0xFF17265F),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f),
@@ -1303,7 +1460,7 @@ private fun DetailRows(rows: List<Pair<String, String>>) {
                     )
                 }
                 if (index < rows.lastIndex) {
-                    HorizontalDivider(color = Color(0xFFE6E0D8))
+                    HorizontalDivider(color = Color(0xFFE7EAF4))
                 }
             }
         }
@@ -1362,7 +1519,7 @@ fun SettingsTab(
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F4EE))) {
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         // Header
         Box(
             modifier = Modifier
@@ -1378,7 +1535,7 @@ fun SettingsTab(
                     fontSize = 18.sp,
                     fontFamily = PlusJakartaSansFamily
                 )
-                Text("Perfil y preferences", color = Color(0xFFD1FAE5), fontSize = 12.sp)
+                Text("Perfil y preferences", color = Color(0xFFFFF6B8), fontSize = 12.sp)
             }
         }
 
@@ -1436,7 +1593,7 @@ fun SettingsTab(
         Surface(modifier = Modifier.padding(horizontal = 16.dp), shape = RoundedCornerShape(24.dp), color = Color.White) {
             Column {
                 SettingsRow(Icons.Default.Info, "Version", BuildConfig.VERSION_NAME)
-                HorizontalDivider(color = Color(0xFFF1F1F1))
+                HorizontalDivider(color = Color(0xFFE7EAF4))
                 SettingsActionRow(
                     Icons.Default.SystemUpdate,
                     "Actualizar version",
@@ -1487,7 +1644,7 @@ fun SettingsActionRow(
         Surface(
             modifier = Modifier.size(36.dp),
             shape = RoundedCornerShape(10.dp),
-            color = if (isDestructive) Color(0xFFFFF3F3) else Color(0xFFE8F5E9)
+            color = if (isDestructive) Color(0xFFFFF3F3) else Color(0xFFFFF6B8)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(icon, contentDescription = null, tint = if (isDestructive) Color.Red else PrimaryGreen, modifier = Modifier.size(18.dp))
@@ -1515,6 +1672,7 @@ private fun ChangePasswordDialog(onDismiss: () -> Unit) {
     val canSave = currentPassword.isNotBlank() && newPassword.length >= 6 && newPassword == confirmPassword
 
     AlertDialog(
+        modifier = Modifier.imePadding(),
         onDismissRequest = onDismiss,
         containerColor = Color.White,
         shape = RoundedCornerShape(24.dp),
@@ -1667,8 +1825,8 @@ private fun PasswordField(
             }
         },
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color(0xFFF7F4EE),
-            unfocusedContainerColor = Color(0xFFF7F4EE),
+            focusedContainerColor = Color.White,
+            unfocusedContainerColor = Color.White,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent
         ),

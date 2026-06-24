@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2",
+  "versionCode": 4,
+  "versionName": "1.3",
   "updatedAt": "2026-06-24",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.2.apk",
-  "releaseNotes": "Nueva version con ajustes visuales del login, mejoras del chat, selector de emoticones y correcciones en tarjetas de voucher.",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.3.apk",
+  "releaseNotes": "Nueva version con tema azul y amarillo, avisos con detalle, transiciones de navegacion y mejoras para que el teclado no tape los campos.",
   "required": false
 }

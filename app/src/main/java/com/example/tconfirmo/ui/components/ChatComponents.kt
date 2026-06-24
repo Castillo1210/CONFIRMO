@@ -1,4 +1,4 @@
-ï»¿package com.example.tconfirmo.ui.components
+package com.example.tconfirmo.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,14 +42,14 @@ import com.example.tconfirmo.ui.theme.PrimaryGreen
 @Composable
 fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
     val statusColor = when (card.status) {
-        ReportStatus.VALIDATED -> Color(0xFF065F46)
+        ReportStatus.VALIDATED -> Color(0xFF17265F)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
-        ReportStatus.PENDING -> Color(0xFF92400E)
+        ReportStatus.PENDING -> Color(0xFF17265F)
     }
     val statusBg = when (card.status) {
-        ReportStatus.VALIDATED -> Color(0xFFD1FAE5)
+        ReportStatus.VALIDATED -> Color(0xFFFFF6B8)
         ReportStatus.REJECTED -> Color(0xFFFEE2E2)
-        ReportStatus.PENDING -> Color(0xFFFEF3C7)
+        ReportStatus.PENDING -> Color(0xFFFFF6B8)
     }
 
     Card(
@@ -77,7 +77,7 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(320.dp)
-                            .background(Color(0xFFF7F0E8)),
+                            .background(Color(0xFFF6F7FB)),
                         contentScale = ContentScale.Crop
                     )
                 }
@@ -159,12 +159,12 @@ private fun ReportStatus.spanishLabel(): String {
 fun StructuredBotBubble(data: StructuredBotData, time: String) {
     val isConfirm = data.type == BotMessageType.CONFIRMATION
     val headerBg = if (isConfirm) {
-        Brush.linearGradient(listOf(Color(0xFF065F46), Color(0xFF0C7753)))
+        Brush.linearGradient(listOf(Color(0xFF17265F), Color(0xFF17265F)))
     } else {
         Brush.linearGradient(listOf(Color(0xFF7F1D1D), Color(0xFFB91C1C)))
     }
-    val footerBg = if (isConfirm) Color(0xFFF0FDF4) else Color(0xFFFEF2F2)
-    val footerTextColor = if (isConfirm) Color(0xFF065F46) else Color(0xFF991B1B)
+    val footerBg = if (isConfirm) Color(0xFFFFF9D6) else Color(0xFFFEF2F2)
+    val footerTextColor = if (isConfirm) Color(0xFF17265F) else Color(0xFF991B1B)
 
     Card(
         modifier = Modifier
@@ -226,7 +226,7 @@ fun StructuredBotBubble(data: StructuredBotData, time: String) {
                         )
                     }
                     if (index < data.rows.size - 1) {
-                        HorizontalDivider(color = Color(0xFFF1F1F1), thickness = 1.dp, modifier = Modifier.padding(horizontal = 14.dp))
+                        HorizontalDivider(color = Color(0xFFE7EAF4), thickness = 1.dp, modifier = Modifier.padding(horizontal = 14.dp))
                     }
                 }
             }
@@ -281,7 +281,7 @@ fun MessageBubble(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .background(
-                if (isSearchMatch) Color(0xFFFFF3B0) else Color.Transparent,
+                if (isSearchMatch) Color(0xFFFFF6B8) else Color.Transparent,
                 RoundedCornerShape(18.dp)
             )
             .padding(if (isSearchMatch) 4.dp else 0.dp),
@@ -303,7 +303,7 @@ fun MessageBubble(
                         Icon(
                             if (message.status == MessageStatus.READ) Icons.Default.DoneAll else Icons.Default.Done,
                             contentDescription = null,
-                            tint = if (message.status == MessageStatus.READ) Color(0xFF2196F3) else Color.Gray,
+                            tint = if (message.status == MessageStatus.READ) Color(0xFFFFE500) else Color.Gray,
                             modifier = Modifier.size(14.dp)
                         )
                     }
@@ -341,7 +341,7 @@ fun MessageBubble(
                                 Icon(
                                     if (message.status == MessageStatus.READ) Icons.Default.DoneAll else Icons.Default.Done,
                                     contentDescription = null,
-                                    tint = if (message.status == MessageStatus.READ) Color(0xFF90CAF9) else Color.White.copy(alpha = 0.7f),
+                                    tint = if (message.status == MessageStatus.READ) Color(0xFFFFE500) else Color.White.copy(alpha = 0.7f),
                                     modifier = Modifier.size(12.dp)
                                 )
                             }
@@ -361,13 +361,13 @@ fun MessageBubblePreview() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
-                .background(Color(0xFFF5F5F5))
+                .background(Color(0xFFF6F7FB))
         ) {
             MessageBubble(
                 message = ChatMessage(
                     id = "1",
                     from = MessageFrom.USER,
-                    text = "Hola, envÃ­o el voucher del depÃ³sito.",
+                    text = "Hola, envío el voucher del depósito.",
                     time = "14:20",
                     status = MessageStatus.READ
                 )
@@ -377,7 +377,7 @@ fun MessageBubblePreview() {
                 message = ChatMessage(
                     id = "2",
                     from = MessageFrom.BOT,
-                    text = "Recibido. Estamos validando la informaciÃ³n.",
+                    text = "Recibido. Estamos validando la información.",
                     time = "14:21"
                 )
             )
@@ -406,7 +406,7 @@ fun MessageBubblePreview() {
                     from = MessageFrom.BOT,
                     structuredData = StructuredBotData(
                         type = BotMessageType.CONFIRMATION,
-                        title = "DEPÃ“SITO CONFIRMADO",
+                        title = "DEPÓSITO CONFIRMADO",
                         rows = listOf(
                             "Empresa" to "JCH COMERCIAL SA",
                             "Banco" to "BCP",

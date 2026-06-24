@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -70,7 +71,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         //colors = listOf(
         //Color(0xFF054534),
         //Color(0xFF0A6647),
-        //Color(0xFF0C7753)
+        //Color(0xFF17265F)
         //)
 
 
@@ -267,7 +268,7 @@ private fun LoginFormSection(
     modifier: Modifier
 ) {
     Surface(
-        modifier = modifier,
+        modifier = modifier.imePadding(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         color = Color(0xffEDEDED)
     ) {
