@@ -1,4 +1,4 @@
-﻿package com.example.tconfirmo.ui.screens
+package com.example.tconfirmo.ui.screens
 
 import android.content.Context
 import android.content.Intent
@@ -6,6 +6,7 @@ import android.net.Uri
 import android.webkit.MimeTypeMap
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,9 +33,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -41,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import androidx.compose.ui.unit.sp
+import com.example.tconfirmo.R
 import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.*
 import com.example.tconfirmo.ui.components.MessageBubble
@@ -54,6 +60,8 @@ import java.io.FileOutputStream
 import java.util.*
 import kotlinx.coroutines.launch
 
+import androidx.compose.ui.tooling.preview.Preview
+import com.example.tconfirmo.ui.theme.TConfirmoTheme
 import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
 
 private const val REGISTER_SESSION_PREFS = "tconfirmo_register_session"
@@ -61,13 +69,14 @@ private const val KEY_PENDING_SHARED_VOUCHERS = "pending_shared_vouchers"
 
 @Composable
 fun MainScreen(
+    initialSelectedTab: Int = 1,
     sharedVoucherUris: List<Uri> = emptyList(),
     onSharedVouchersConsumed: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
     var showRegisterSheet by remember { mutableStateOf(false) }
     var registerSharedVoucherUriStrings by rememberSaveable {
         mutableStateOf(loadPendingSharedVoucherUriStrings(context))
@@ -95,65 +104,62 @@ fun MainScreen(
 
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                containerColor = Color.White,
-                tonalElevation = 8.dp
-            ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.AutoMirrored.Filled.Message, contentDescription = "Chat") },
-                    label = { Text("Chat", fontSize = 9.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryGreen,
-                        selectedTextColor = PrimaryGreen,
-                        indicatorColor = Color(0xFFE8F5E9)
+            if (selectedTab != 1) {
+                NavigationBar(
+                    containerColor = Color.White,
+                    tonalElevation = 8.dp
+                ) {
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        icon = { Icon(Icons.AutoMirrored.Filled.Message, contentDescription = "Chat") },
+                        label = { Text("Chat", fontSize = 9.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryGreen,
+                            selectedTextColor = PrimaryGreen,
+                            indicatorColor = Color(0xFFE8F5E9)
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.BarChart, contentDescription = "Reportes") },
-                    label = { Text("Reportes", fontSize = 9.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryGreen,
-                        selectedTextColor = PrimaryGreen,
-                        indicatorColor = Color(0xFFE8F5E9)
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        icon = { Icon(Icons.Default.BarChart, contentDescription = "Reportes") },
+                        label = { Text("Reportes", fontSize = 9.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryGreen,
+                            selectedTextColor = PrimaryGreen,
+                            indicatorColor = Color(0xFFE8F5E9)
+                        )
                     )
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Configuracion") },
-                    label = { Text("Ajustes", fontSize = 9.sp) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = PrimaryGreen,
-                        selectedTextColor = PrimaryGreen,
-                        indicatorColor = Color(0xFFE8F5E9)
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = { selectedTab = 2 },
+                        icon = { Icon(Icons.Default.Notifications, contentDescription = "Avisos") },
+                        label = { Text("Avisos", fontSize = 9.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryGreen,
+                            selectedTextColor = PrimaryGreen,
+                            indicatorColor = Color(0xFFE8F5E9)
+                        )
                     )
-                )
+                    NavigationBarItem(
+                        selected = selectedTab == 3,
+                        onClick = { selectedTab = 3 },
+                        icon = { Icon(Icons.Default.Settings, contentDescription = "Configuracion") },
+                        label = { Text("Ajustes", fontSize = 9.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = PrimaryGreen,
+                            selectedTextColor = PrimaryGreen,
+                            indicatorColor = Color(0xFFE8F5E9)
+                        )
+                    )
+                }
             }
         }
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
             when (selectedTab) {
-                0 -> ChatTab(
-                    messages = messages,
-                    onOpenRegister = {
-                        showRegisterSheet = true
-                    },
-                    onSendMessage = { text ->
-                        val newMsg = ChatMessage(
-                            id = UUID.randomUUID().toString(),
-                            from = MessageFrom.USER,
-                            text = text,
-                            time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
-                            status = MessageStatus.SENT
-                        )
-                        messages = messages + newMsg
-                    }
-                )
-                1 -> ReportsTab(
+                0 -> ReportsTab(
                     reports = reports,
                     onRegularize = { report ->
                         updatePendingSharedVouchers(emptyList())
@@ -169,7 +175,25 @@ fun MainScreen(
                         showRegisterSheet = true
                     }
                 )
-                2 -> SettingsTab(
+                1 -> ChatTab(
+                    messages = messages,
+                    onBack = { selectedTab = 0 },
+                    onOpenRegister = {
+                        showRegisterSheet = true
+                    },
+                    onSendMessage = { text ->
+                        val newMsg = ChatMessage(
+                            id = UUID.randomUUID().toString(),
+                            from = MessageFrom.USER,
+                            text = text,
+                            time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
+                            status = MessageStatus.SENT
+                        )
+                        messages = messages + newMsg
+                    }
+                )
+                2 -> NoticesTab()
+                3 -> SettingsTab(
                     onCheckForUpdates = onCheckForUpdates,
                     onLogout = onLogout
                 )
@@ -237,7 +261,7 @@ fun MainScreen(
                     updatePendingSharedVouchers(emptyList())
                     registerInitialDrafts = emptyList()
                     registerResetKey += 1
-                    selectedTab = 0
+                    selectedTab = 1
             }
         )
     }
@@ -246,14 +270,23 @@ fun MainScreen(
 @Composable
 fun ChatTab(
     messages: List<ChatMessage>,
+    onBack: () -> Unit,
     onOpenRegister: () -> Unit,
     onSendMessage: (String) -> Unit
 ) {
     var textInput by remember { mutableStateOf("") }
+    var emojiPickerOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var searchText by remember { mutableStateOf("") }
     var currentMatch by remember { mutableStateOf(0) }
     var openedVoucher by remember { mutableStateOf<VoucherCard?>(null) }
+    val emojis = remember {
+        listOf(
+            "\uD83D\uDE00", "\uD83D\uDE01", "\uD83D\uDE02", "\uD83D\uDE0A",
+            "\uD83D\uDE0D", "\uD83D\uDC4D", "\uD83D\uDE4F", "\u2705",
+            "\uD83D\uDCF7", "\uD83D\uDCB5", "\uD83C\uDFE6", "\uD83D\uDE97"
+        )
+    }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val matches = remember(messages, searchText) {
@@ -272,28 +305,54 @@ fun ChatTab(
         matches.firstOrNull()?.let { listState.animateScrollToItem(it) }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F4EE))) {
+    LaunchedEffect(messages.size, searchOpen) {
+        if (!searchOpen && messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.lastIndex)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         // Chat Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PrimaryGreen)
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .padding(horizontal = 16.dp, vertical = 1.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    modifier = Modifier.size(36.dp),
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.18f)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
-                    }
+                IconButton(onClick = onBack, modifier = Modifier.size(34.dp)) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Volver a reportes", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text("Bot Confirmaciones", color = Color.White, fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                    Text("en linea - respuesta automatica", color = Color(0xFFD1FAE5), fontSize = 11.sp)
+                Spacer(modifier = Modifier.width(4.dp))
+                Surface(
+                    modifier = Modifier.size(34.dp),
+                    shape = CircleShape,
+                    color = Color.White
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.bot_tire2),
+                        contentDescription = "TireBot",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(-1.dp)
+                ) {
+                    Text(
+                        "TireBot",
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 14.sp,
+                        lineHeight = 14.sp
+                    )
+                    Text(
+                        "en linea - respuesta automatica",
+                        color = Color(0xFFD1FAE5),
+                        fontSize = 11.sp,
+                        lineHeight = 11.sp
+                    )
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = { searchOpen = !searchOpen }) {
@@ -330,71 +389,133 @@ fun ChatTab(
         }
 
         // Messages List
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
-            contentPadding = PaddingValues(vertical = 12.dp),
-            reverseLayout = false
-        ) {
-            items(
-                items = messages,
-                key = { it.id }
-            ) { msg ->
-                val index = messages.indexOf(msg)
-                MessageBubble(
-                    message = msg,
-                    isSearchMatch = index == activeMatchIndex,
-                    onVoucherClick = { openedVoucher = it }
-                )
-            }
-        }
-
-        // Input Area
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            color = Color.White,
-            tonalElevation = 2.dp
-        ) {
-            Row(
-                modifier = Modifier.padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Box(modifier = Modifier.weight(1f)) {
+            Image(
+                painter = painterResource(id = R.drawable.llanta),
+                contentDescription = null,
+                modifier = Modifier.matchParentSize(),
+                contentScale = ContentScale.Crop
+            )
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                contentPadding = PaddingValues(top = 12.dp, bottom = 84.dp),
+                reverseLayout = false
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .background(PrimaryGreen, CircleShape)
-                        .clickable(onClick = onOpenRegister),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "Registrar voucher", tint = Color.White, modifier = Modifier.size(14.dp))
+                items(
+                    items = messages,
+                    key = { it.id }
+                ) { msg ->
+                    val index = messages.indexOf(msg)
+                    MessageBubble(
+                        message = msg,
+                        isSearchMatch = index == activeMatchIndex,
+                        onVoucherClick = { openedVoucher = it }
+                    )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                TextField(
-                    value = textInput,
-                    onValueChange = { textInput = it },
-                    placeholder = { Text("Mensaje", fontSize = 14.sp) },
-                    modifier = Modifier.weight(1f),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF1F1F1),
-                        unfocusedContainerColor = Color(0xFFF1F1F1),
-                        disabledContainerColor = Color(0xFFF1F1F1),
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    shape = RoundedCornerShape(24.dp)
-                )
-                if (textInput.isNotBlank()) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            onSendMessage(textInput)
-                            textInput = ""
-                        },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(PrimaryGreen, CircleShape)
+            }
+
+            // Input Area
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color.White,
+                    shape = RoundedCornerShape(28.dp),
+                    shadowElevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        IconButton(
+                            onClick = onOpenRegister,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = "Registrar voucher", tint = Color.Black, modifier = Modifier.size(24.dp))
+                        }
+                        Box {
+                            IconButton(
+                                onClick = { emojiPickerOpen = true },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(Icons.Default.InsertEmoticon, contentDescription = "Emoji", tint = Color.Black, modifier = Modifier.size(22.dp))
+                            }
+                            DropdownMenu(
+                                expanded = emojiPickerOpen,
+                                onDismissRequest = { emojiPickerOpen = false },
+                                shape = RoundedCornerShape(18.dp),
+                                containerColor = Color.White,
+                                shadowElevation = 8.dp
+                            ) {
+                                emojis.chunked(6).forEach { rowEmojis ->
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        rowEmojis.forEach { emoji ->
+                                            Text(
+                                                text = emoji,
+                                                fontSize = 22.sp,
+                                                fontFamily = FontFamily.Default,
+                                                modifier = Modifier
+                                                    .size(34.dp)
+                                                    .clickable {
+                                                        textInput += emoji
+                                                        emojiPickerOpen = false
+                                                    }
+                                                    .padding(4.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        BasicTextField(
+                            value = textInput,
+                            onValueChange = { textInput = it },
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = 14.sp,
+                                color = Color.Black,
+                                fontFamily = FontFamily.Default
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(40.dp)
+                                .padding(horizontal = 4.dp),
+                            decorationBox = { innerTextField ->
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (textInput.isBlank()) {
+                                        Text("Escribe un mensaje", fontSize = 14.sp, color = Color.Gray)
+                                    }
+                                    innerTextField()
+                                }
+                            }
+                        )
+                        IconButton(
+                            onClick = {
+                                if (textInput.isBlank()) return@IconButton
+                                onSendMessage(textInput)
+                                textInput = ""
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Enviar",
+                                tint = if (textInput.isBlank()) Color.Gray else Color.Black,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -435,8 +556,8 @@ private fun SearchBar(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(18.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color(0xFFF1F1F1),
-                    unfocusedContainerColor = Color(0xFFF1F1F1),
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 )
@@ -522,6 +643,7 @@ fun ReportsTab(
     var currentPage by remember { mutableStateOf(0) }
     var selectedReport by remember { mutableStateOf<Report?>(null) }
     val context = LocalContext.current
+    val reportsListState = rememberLazyListState()
     val filteredReports = when (filter) {
         "pending" -> reports.filter { it.status == ReportStatus.PENDING }
         "validated" -> reports.filter { it.status == ReportStatus.VALIDATED }
@@ -533,6 +655,15 @@ fun ReportsTab(
     val pagedReports = filteredReports
         .drop(currentPage * reportsPageSize)
         .take(reportsPageSize)
+    val highlightedReportId by remember {
+        derivedStateOf {
+            val layoutInfo = reportsListState.layoutInfo
+            val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+            layoutInfo.visibleItemsInfo
+                .minByOrNull { item -> kotlin.math.abs((item.offset + item.size / 2) - viewportCenter) }
+                ?.key as? String
+        }
+    }
 
     LaunchedEffect(filter, reports) {
         currentPage = 0
@@ -550,7 +681,7 @@ fun ReportsTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PrimaryGreen)
-                .padding(16.dp)
+                .padding(16.dp,7.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column {
@@ -592,6 +723,7 @@ fun ReportsTab(
 
         // List
         LazyColumn(
+            state = reportsListState,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -602,6 +734,7 @@ fun ReportsTab(
             ) { report ->
                 ReportItem(
                     report = report,
+                    highlighted = highlightedReportId == report.id,
                     onClick = { selectedReport = report },
                     onRegularize = { onRegularize(report) }
                 )
@@ -744,6 +877,50 @@ private fun PaginationPageButton(
 }
 
 @Composable
+private fun NoticesTab() {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF7F4EE))) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(PrimaryGreen)
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+        ) {
+            Column {
+                Text(
+                    "Avisos",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    fontFamily = PlusJakartaSansFamily
+                )
+                Text("Notificaciones y comunicados", color = Color(0xFFD1FAE5), fontSize = 12.sp)
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            shadowElevation = 2.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.NotificationsNone, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(22.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Sin avisos pendientes", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text("Aqui apareceran las novedades importantes.", color = Color.Gray, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun FilterChip(selected: Boolean, label: String, onClick: () -> Unit) {
     Surface(
         color = if (selected) PrimaryGreen else Color(0xFFE0E0E0),
@@ -763,6 +940,7 @@ fun FilterChip(selected: Boolean, label: String, onClick: () -> Unit) {
 @Composable
 fun ReportItem(
     report: Report,
+    highlighted: Boolean,
     onClick: () -> Unit,
     onRegularize: () -> Unit
 ) {
@@ -776,27 +954,31 @@ fun ReportItem(
         ReportStatus.REJECTED -> Color(0xFFFEE2E2)
         ReportStatus.PENDING -> Color(0xFFFEF3C7)
     }
-    val cardBg = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFFF0FDF4)
-        ReportStatus.REJECTED -> Color(0xFFFFF1F2)
-        ReportStatus.PENDING -> Color(0xFFFFFBEB)
+    val cardBg = Color(0xFFFFFEFC)
+    val statusAccent = when (report.status) {
+        ReportStatus.VALIDATED -> Color(0xFF22C55E)
+        ReportStatus.REJECTED -> Color(0xFFEF4444)
+        ReportStatus.PENDING -> Color(0xFFF97316)
     }
-    val cardBorder = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFF86EFAC)
-        ReportStatus.REJECTED -> Color(0xFFFCA5A5)
-        ReportStatus.PENDING -> Color(0xFFFCD34D)
-    }
+    val cardBorder = if (highlighted) statusAccent.copy(alpha = 0.58f) else Color(0xFFE8E1D8)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = cardBg),
         border = BorderStroke(1.dp, cardBorder),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (highlighted) 10.dp else 3.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(statusAccent)
+            )
+            Column(modifier = Modifier.padding(14.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -807,10 +989,10 @@ fun ReportItem(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    if (report.status == ReportStatus.VALIDATED) {
+
                         Text(report.fecha, color = Color(0xFF6B6258), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text(report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
-                    }
+
                     Surface(color = statusBg, shape = RoundedCornerShape(12.dp)) {
                         Text(
                             text = report.status.spanishLabel(),
@@ -838,11 +1020,10 @@ fun ReportItem(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = report.empresa, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF252321))
-            Text(text = report.cliente, color = Color(0xFF6B6258), fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = report.empresa + " - " + report.cliente , fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF252321))
             Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = cardBorder.copy(alpha = 0.45f))
+            HorizontalDivider(color = Color(0xFFEDE7DF))
             Spacer(modifier = Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF6B6258), modifier = Modifier.size(14.dp))
@@ -859,6 +1040,7 @@ fun ReportItem(
                     Spacer(modifier = Modifier.weight(1f))
                     Text(text = report.hora, color = Color(0xFF6B6258), fontSize = 10.sp)
                 }
+            }
             }
         }
     }
@@ -1498,7 +1680,7 @@ fun getInitialMessages(): List<ChatMessage> {
     return listOf(
         ChatMessage(
             id = "m1", from = MessageFrom.BOT,
-            text = "👋 Hola Juan. Estoy listo para recibir tus depositos. Usa el boton de camara 📷 para registrar un voucher.",
+            text = "?? Hola Juan. Estoy listo para recibir tus depositos. Usa el boton de camara ?? para registrar un voucher.",
             time = "08:00"
         ),
         ChatMessage(
@@ -1525,7 +1707,7 @@ fun getInitialMessages(): List<ChatMessage> {
                     "Operacion" to "2545539",
                     "Importe" to "PEN 800.00"
                 ),
-                footer = "✅ Validado y registrado exitosamente."
+                footer = "? Validado y registrado exitosamente."
             ),
             time = "14:23"
         ),
@@ -1541,7 +1723,7 @@ fun getInitialMessages(): List<ChatMessage> {
         ),
         ChatMessage(
             id = "m5", from = MessageFrom.BOT,
-            text = "⏳ Solicitud #002 recibida. En proceso de validacion.",
+            text = "? Solicitud #002 recibida. En proceso de validacion.",
             time = "15:11"
         )
     )
@@ -1676,6 +1858,18 @@ private fun ReportStatus.spanishLabel(): String {
     }
 }
 
+@Preview(showBackground = true)
+@Composable
+fun MainScreenPreview() {
+    TConfirmoTheme {
+        MainScreen()
+    }
+}
 
-
-
+@Preview(showBackground = true)
+@Composable
+fun MainScreenChatPreview() {
+    TConfirmoTheme {
+        MainScreen(initialSelectedTab = 1)
+    }
+}

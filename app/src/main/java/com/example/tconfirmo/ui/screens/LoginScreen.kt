@@ -50,7 +50,9 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
 import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
+import com.example.tconfirmo.ui.theme.TConfirmoTheme
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
@@ -60,16 +62,24 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
     val gradientBrush = Brush.verticalGradient(
         colors = listOf(
-            Color(0xFF054534),
-            Color(0xFF0A6647),
-            Color(0xFF0C7753)
+            Color(0xFF17265F),
+            Color(0xFF142259),
+            Color(0xFF101B49)
         )
+
+        //colors = listOf(
+        //Color(0xFF054534),
+        //Color(0xFF0A6647),
+        //Color(0xFF0C7753)
+        //)
+
+
     )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF7F4EE))
+            .background(Color.White)
     ) {
         HeaderSection(
             modifier = Modifier
@@ -109,7 +119,7 @@ private fun HeaderSection(
                 .size(176.dp)
                 .align(Alignment.TopEnd)
                 .offset(x = 72.dp, y = (-40).dp),
-            color = Color(0xFFA7F3D0),
+            color = Color(0xFFFFE500),
             alpha = 0.10f
         )
         HeaderGlow(
@@ -117,7 +127,7 @@ private fun HeaderSection(
                 .size(128.dp)
                 .align(Alignment.CenterStart)
                 .offset(x = (-48).dp, y = (-12).dp),
-            color = Color(0xFF6EE7B7),
+            color = Color(0xFFFFE500),
             alpha = 0.10f
         )
         HeaderGlow(
@@ -125,7 +135,7 @@ private fun HeaderSection(
                 .size(80.dp)
                 .align(Alignment.BottomEnd)
                 .offset(x = 2.dp, y = (-16).dp),
-            color = Color(0xFFFEF3C7),
+            color = Color(0xFFFFE500),
             alpha = 0.15f
         )
 
@@ -137,7 +147,7 @@ private fun HeaderSection(
 
             Text(
                 text = "BIENVENIDO A",
-                color = Color(0xFFA7F3D0).copy(alpha = 0.8f),
+                color = Color(0xFFFFE500).copy(alpha = 0.9f),
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 2.2.sp,
@@ -147,7 +157,7 @@ private fun HeaderSection(
                 Text(
                 text = "CONFIRMO",
                 color = Color.White,
-                fontSize = 50.sp,
+                fontSize = 55.sp,
                 fontWeight = FontWeight.ExtraBold,
                 lineHeight = 52.sp,
                 fontFamily = PlusJakartaSansFamily
@@ -155,7 +165,7 @@ private fun HeaderSection(
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
                 text = "Sistema de confirmacion de depositos bancarios",
-                color = Color(0xFFA7F3D0).copy(alpha = 0.75f),
+                color = Color.White.copy(alpha = 0.78f),
                 fontSize = 18.sp,
                 lineHeight = 24.sp,
                 modifier = Modifier.width(240.dp)
@@ -170,9 +180,9 @@ private fun HeaderSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FeatureItem("Simple", "Registro rapido")
-                VerticalDivider(color = Color(0xFFA7F3D0).copy(alpha = 0.2f), modifier = Modifier.height(24.dp))
+                VerticalDivider(color = Color(0xFFFFE500).copy(alpha = 0.35f), modifier = Modifier.height(24.dp))
                 FeatureItem("Agil", "Confirmacion")
-                VerticalDivider(color = Color(0xFFA7F3D0).copy(alpha = 0.2f), modifier = Modifier.height(24.dp))
+                VerticalDivider(color = Color(0xFFFFE500).copy(alpha = 0.35f), modifier = Modifier.height(24.dp))
                 FeatureItem("Seguro", "Proteccion de datos")
             }
         }
@@ -202,21 +212,21 @@ private fun ConfirmoLogoMark() {
     Surface(
         modifier = Modifier.size(48.dp),
         shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
+        color = Color(0xFFFFE500).copy(alpha = 0.16f),
+        border = BorderStroke(1.dp, Color(0xFFFFE500).copy(alpha = 0.45f))
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val circleStroke = Stroke(width = 2.3.dp.toPx(), cap = StrokeCap.Round)
             val checkStroke = 2.7.dp.toPx()
 
             drawCircle(
-                color = Color.White,
+                color = Color(0xFFFFE500),
                 radius = 11.5.dp.toPx(),
                 center = center,
                 style = circleStroke
             )
             drawLine(
-                color = Color.White,
+                color = Color(0xFFFFE500),
                 start = androidx.compose.ui.geometry.Offset(
                     x = center.x - 5.5.dp.toPx(),
                     y = center.y + 0.5.dp.toPx()
@@ -229,7 +239,7 @@ private fun ConfirmoLogoMark() {
                 cap = StrokeCap.Round
             )
             drawLine(
-                color = Color.White,
+                color = Color(0xFFFFE500),
                 start = androidx.compose.ui.geometry.Offset(
                     x = center.x - 1.5.dp.toPx(),
                     y = center.y + 4.5.dp.toPx()
@@ -259,7 +269,7 @@ private fun LoginFormSection(
     Surface(
         modifier = modifier,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        color = Color(0xFFF7F4EE)
+        color = Color(0xffEDEDED)
     ) {
         Column(
             modifier = Modifier
@@ -270,13 +280,13 @@ private fun LoginFormSection(
                 text = "Iniciar sesion",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF1C1B1F),
+                color = Color(0xFF17265F),
                 fontFamily = PlusJakartaSansFamily
             )
             Text(
                 text = "Ingresa tus credenciales para continuar",
                 fontSize = 12.sp,
-                color = Color.Gray
+                color = Color(0xFF17265F).copy(alpha = 0.62f)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -311,7 +321,10 @@ private fun LoginFormSection(
                     .fillMaxWidth()
                     .height(56.dp),
                 shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0C7753))
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFFFE500),
+                    contentColor = Color(0xFF17265F)
+                )
             ) {
                 Text("Ingresar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
@@ -325,7 +338,7 @@ private fun LoginFormSection(
                 Text(
                     text = "v2.4.1 - Produccion - 2026 Confirmo",
                     fontSize = 10.sp,
-                    color = Color.Gray
+                    color = Color(0xFF17265F).copy(alpha = 0.48f)
                 )
             }
         }
@@ -351,13 +364,16 @@ private fun CustomTextField(
         shape = RoundedCornerShape(16.dp),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color(0xFFEFEDE8),
+            unfocusedContainerColor = Color(0xFFF6F7FB),
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent
+            disabledIndicatorColor = Color.Transparent,
+            focusedTextColor = Color(0xFF17265F),
+            unfocusedTextColor = Color(0xFF17265F),
+            cursorColor = Color(0xFF17265F)
         ),
         leadingIcon = {
-            Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.Gray)
+            Icon(leadingIcon, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color(0xFF17265F).copy(alpha = 0.68f))
         },
         trailingIcon = if (isPassword && onPasswordToggle != null) {
             {
@@ -366,7 +382,7 @@ private fun CustomTextField(
                         if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
-                        tint = Color.Gray
+                        tint = Color(0xFF17265F).copy(alpha = 0.68f)
                     )
                 }
             }
@@ -378,12 +394,12 @@ private fun CustomTextField(
                 text = label,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Gray,
+                color = Color(0xFF17265F).copy(alpha = 0.68f),
                 letterSpacing = 0.5.sp
             )
         },
         placeholder = {
-            Text(text = placeholder, fontSize = 14.sp, color = Color.Gray.copy(alpha = 0.5f))
+            Text(text = placeholder, fontSize = 14.sp, color = Color(0xFF17265F).copy(alpha = 0.38f))
         },
         visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = keyboardOptions,
@@ -404,10 +420,18 @@ private fun FeatureItem(value: String, label: String) {
         )
         Text(
             text = label,
-            color = Color(0xFFA7F3D0).copy(alpha = 0.7f),
+            color = Color.White.copy(alpha = 0.72f),
             fontSize = 10.sp,
             lineHeight = 13.sp,
             fontFamily = PlusJakartaSansFamily
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun LoginScreenPreview() {
+    TConfirmoTheme {
+        LoginScreen(onLoginSuccess = {})
     }
 }

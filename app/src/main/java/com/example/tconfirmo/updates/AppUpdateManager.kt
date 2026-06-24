@@ -58,6 +58,9 @@ class AppUpdateManager(private val context: Context) {
         }
 
         try {
+            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
+                error("No se pudo descargar el archivo de actualizacion.")
+            }
             connection.inputStream.use { input ->
                 apkFile.outputStream().use { output ->
                     val totalBytes = connection.contentLengthLong.takeIf { it > 0L }

@@ -1,8 +1,8 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
-  "updatedAt": "2026-06-20",
-  "apkUrl": "https://github.com/Castillo1210/CONFIRMO/releases/download/v1.1/app-debug.apk",
-  "releaseNotes": "Mejoras visuales en reportes, preview de vouchers y opcion manual de actualizacion.",
+  "versionCode": 3,
+  "versionName": "1.2",
+  "updatedAt": "2026-06-24",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.2.apk",
+  "releaseNotes": "Nueva version con ajustes visuales del login, mejoras del chat, selector de emoticones y correcciones en tarjetas de voucher.",
   "required": false
 }

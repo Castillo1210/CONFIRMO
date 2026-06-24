@@ -23,6 +23,8 @@ import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
+import com.example.tconfirmo.ui.theme.TConfirmoTheme
 import com.example.tconfirmo.data.BotMessageType
 import com.example.tconfirmo.data.MessageStatus
 import com.example.tconfirmo.data.StructuredBotData
@@ -52,7 +54,7 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
 
     Card(
         modifier = Modifier
-            .fillMaxWidth(0.88f)
+            .width(260.dp)
             .padding(vertical = 4.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
@@ -66,7 +68,7 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
                         uriString = card.imageUrl,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(420.dp)
+                            .height(360.dp)
                     )
                 } else {
                     AsyncImage(
@@ -74,9 +76,9 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(420.dp)
+                            .height(320.dp)
                             .background(Color(0xFFF7F0E8)),
-                        contentScale = ContentScale.Fit
+                        contentScale = ContentScale.Crop
                     )
                 }
                 Surface(
@@ -128,7 +130,7 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(1.dp))
                 Text(text = card.cliente, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Text(text = card.banco, fontSize = 12.sp, color = Color.Gray)
             }
@@ -322,6 +324,7 @@ fun MessageBubble(
                             text = message.text ?: "",
                             color = if (isUser) Color.White else Color.Black,
                             fontSize = 14.sp,
+                            fontFamily = FontFamily.Default,
                             lineHeight = 20.sp
                         )
                         Row(
@@ -350,4 +353,71 @@ fun MessageBubble(
     }
 }
 
+@Preview(showBackground = true)
+@Composable
+fun MessageBubblePreview() {
+    TConfirmoTheme {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .background(Color(0xFFF5F5F5))
+        ) {
+            MessageBubble(
+                message = ChatMessage(
+                    id = "1",
+                    from = MessageFrom.USER,
+                    text = "Hola, envío el voucher del depósito.",
+                    time = "14:20",
+                    status = MessageStatus.READ
+                )
+            )
+            
+            MessageBubble(
+                message = ChatMessage(
+                    id = "2",
+                    from = MessageFrom.BOT,
+                    text = "Recibido. Estamos validando la información.",
+                    time = "14:21"
+                )
+            )
 
+            MessageBubble(
+                message = ChatMessage(
+                    id = "3",
+                    from = MessageFrom.USER,
+                    voucherCard = VoucherCard(
+                        solicitudId = "#001",
+                        voucherName = "Voucher_BCP.jpg",
+                        imageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f",
+                        empresa = "JCH COMERCIAL SA",
+                        banco = "BCP",
+                        cliente = "Carlos Mendoza",
+                        status = ReportStatus.VALIDATED
+                    ),
+                    time = "14:22",
+                    status = MessageStatus.READ
+                )
+            )
+
+            MessageBubble(
+                message = ChatMessage(
+                    id = "4",
+                    from = MessageFrom.BOT,
+                    structuredData = StructuredBotData(
+                        type = BotMessageType.CONFIRMATION,
+                        title = "DEPÓSITO CONFIRMADO",
+                        rows = listOf(
+                            "Empresa" to "JCH COMERCIAL SA",
+                            "Banco" to "BCP",
+                            "Operacion" to "2545539",
+                            "Importe" to "PEN 800.00"
+                        ),
+                        footer = "Validado y registrado exitosamente."
+                    ),
+                    time = "14:23"
+                )
+            )
+        }
+    }
+}
