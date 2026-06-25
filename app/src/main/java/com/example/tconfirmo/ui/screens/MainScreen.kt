@@ -1,5 +1,6 @@
 package com.example.tconfirmo.ui.screens
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -44,23 +45,29 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.unit.sp
 import com.example.tconfirmo.R
 import com.example.tconfirmo.BuildConfig
@@ -68,6 +75,8 @@ import com.example.tconfirmo.data.*
 import com.example.tconfirmo.ui.components.MessageBubble
 import com.example.tconfirmo.ui.components.PdfPreview
 import com.example.tconfirmo.ui.components.RegisterSheet
+import com.example.tconfirmo.ui.theme.AccentGreen
+import com.example.tconfirmo.ui.theme.PrimaryDarkGreen
 import com.example.tconfirmo.ui.theme.PrimaryGreen
 import org.json.JSONArray
 import java.text.SimpleDateFormat
@@ -85,7 +94,7 @@ private const val KEY_PENDING_SHARED_VOUCHERS = "pending_shared_vouchers"
 
 @Composable
 fun MainScreen(
-    initialSelectedTab: Int = 1,
+    initialSelectedTab: Int = 0,
     sharedVoucherUris: List<Uri> = emptyList(),
     onSharedVouchersConsumed: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
@@ -119,14 +128,50 @@ fun MainScreen(
     }
 
     BackHandler(enabled = selectedTab == 1) {
-        selectedTab = 1
+        selectedTab = 0
+    }
+
+    // Config anterior del menu inferior: fondo blanco, activo PrimaryGreen, indicador Color(0xFFFFF6B8).
+    val bottomBarContainerColor = PrimaryGreen
+    val bottomBarSelectedColor = AccentGreen
+    val bottomBarUnselectedColor = Color(0xFFE7EAF4)
+    val bottomBarIndicatorColor = PrimaryDarkGreen
+    val systemNavigationColor = if (selectedTab != 1) bottomBarContainerColor else Color.White
+    val view = LocalView.current
+
+    SideEffect {
+        val window = (view.context as? Activity)?.window ?: return@SideEffect
+        window.navigationBarColor = systemNavigationColor.toArgb()
+        WindowInsetsControllerCompat(window, view).isAppearanceLightNavigationBars = selectedTab == 1
     }
 
     Scaffold(
+        floatingActionButton = {
+            if (selectedTab == 0) {
+                FloatingActionButton(
+                    onClick = {
+                        updatePendingSharedVouchers(emptyList())
+                        registerInitialDrafts = emptyList()
+                        registerResetKey += 1
+                        showRegisterSheet = true
+                    },
+                    containerColor = PrimaryGreen,
+                    contentColor = Color.White,
+                    elevation = FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 10.dp,
+                        pressedElevation = 14.dp,
+                        focusedElevation = 12.dp,
+                        hoveredElevation = 12.dp
+                    )
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Nuevo deposito")
+                }
+            }
+        },
         bottomBar = {
             if (selectedTab != 1) {
                 Surface(
-                    color = Color.White,
+                    color = bottomBarContainerColor,
                     tonalElevation = 10.dp
                 ) {
                     Column(
@@ -135,7 +180,7 @@ fun MainScreen(
                             .navigationBarsPadding()
                     ) {
                         NavigationBar(
-                            containerColor = Color.White,
+                            containerColor = bottomBarContainerColor,
                             tonalElevation = 0.dp,
                             windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
                             modifier = Modifier
@@ -164,9 +209,11 @@ fun MainScreen(
                         },
                         label = null,
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = PrimaryGreen,
-                            selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFFFF6B8)
+                            selectedIconColor = bottomBarSelectedColor,
+                            selectedTextColor = bottomBarSelectedColor,
+                            unselectedIconColor = bottomBarUnselectedColor,
+                            unselectedTextColor = bottomBarUnselectedColor,
+                            indicatorColor = bottomBarIndicatorColor
                         )
                     )
                     NavigationBarItem(
@@ -190,9 +237,11 @@ fun MainScreen(
                         },
                         label = null,
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = PrimaryGreen,
-                            selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFFFF6B8)
+                            selectedIconColor = bottomBarSelectedColor,
+                            selectedTextColor = bottomBarSelectedColor,
+                            unselectedIconColor = bottomBarUnselectedColor,
+                            unselectedTextColor = bottomBarUnselectedColor,
+                            indicatorColor = bottomBarIndicatorColor
                         )
                     )
                     NavigationBarItem(
@@ -219,9 +268,11 @@ fun MainScreen(
                        },
                         label = null,
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = PrimaryGreen,
-                            selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFFFF6B8)
+                            selectedIconColor = bottomBarSelectedColor,
+                            selectedTextColor = bottomBarSelectedColor,
+                            unselectedIconColor = bottomBarUnselectedColor,
+                            unselectedTextColor = bottomBarUnselectedColor,
+                            indicatorColor = bottomBarIndicatorColor
                         )
                     )
                     NavigationBarItem(
@@ -247,9 +298,11 @@ fun MainScreen(
                         },
                         label = null,
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = PrimaryGreen,
-                            selectedTextColor = PrimaryGreen,
-                            indicatorColor = Color(0xFFFFF6B8)
+                            selectedIconColor = bottomBarSelectedColor,
+                            selectedTextColor = bottomBarSelectedColor,
+                            unselectedIconColor = bottomBarUnselectedColor,
+                            unselectedTextColor = bottomBarUnselectedColor,
+                            indicatorColor = bottomBarIndicatorColor
                         )
                     )
                         }
@@ -377,7 +430,7 @@ fun MainScreen(
                     updatePendingSharedVouchers(emptyList())
                     registerInitialDrafts = emptyList()
                     registerResetKey += 1
-                    selectedTab = 1
+                    selectedTab = 0
             }
         )
     }
@@ -439,7 +492,7 @@ fun ChatTab(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFF))) {
         // Chat Header
         Box(
             modifier = Modifier
@@ -552,6 +605,28 @@ fun ChatTab(
                     }
                 }
 
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.CenterEnd
+                ) {
+                    FloatingActionButton(
+                        onClick = onOpenRegister,
+                        containerColor = PrimaryGreen,
+                        contentColor = Color.White,
+                        elevation = FloatingActionButtonDefaults.elevation(
+                            defaultElevation = 10.dp,
+                            pressedElevation = 14.dp,
+                            focusedElevation = 12.dp,
+                            hoveredElevation = 12.dp
+                        ),
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = "Nuevo deposito")
+                    }
+                }
+
                 // Input Area
                 Box(
                     modifier = Modifier
@@ -575,12 +650,6 @@ fun ChatTab(
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(
-                                onClick = onOpenRegister,
-                                modifier = Modifier.size(34.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Registrar voucher", tint = Color.Black, modifier = Modifier.size(24.dp))
-                            }
                             Box {
                                 IconButton(
                                     onClick = { emojiPickerOpen = true },
@@ -790,6 +859,7 @@ fun ReportsTab(
     var filter by remember { mutableStateOf("all") }
     var currentPage by remember { mutableStateOf(0) }
     var selectedReport by remember { mutableStateOf<Report?>(null) }
+    var showExportSheet by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val reportsListState = rememberLazyListState()
     val filteredReports = when (filter) {
@@ -823,7 +893,7 @@ fun ReportsTab(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFF8FAFF))) {
         // Header
         Box(
             modifier = Modifier
@@ -843,15 +913,51 @@ fun ReportsTab(
                     Text("${reports.size} solicitudes registradas", color = Color(0xFFFFF6B8), fontSize = 12.sp)
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                Surface(
-                    color = Color.White.copy(alpha = 0.15f),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.clickable { exportReportsForExcel(context, reports) }
-                ) {
-                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Excel", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Box {
+                    Surface(
+                        color = Color.White.copy(alpha = 0.15f),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.clickable { showExportSheet = true }
+                    ) {
+                        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Download, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Excel", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    DropdownMenu(
+                        expanded = showExportSheet,
+                        onDismissRequest = { showExportSheet = false },
+                        shape = RoundedCornerShape(18.dp),
+                        containerColor = Color.White,
+                        shadowElevation = 10.dp
+                    ) {
+                        ExportDateRange.entries.forEach { range ->
+                            Row(
+                                modifier = Modifier
+                                    .clickable {
+                                        exportReportsForExcel(context, reports.filterByExportRange(range))
+                                        showExportSheet = false
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(30.dp),
+                                    shape = CircleShape,
+                                    color = Color(0xFFFFF6B8)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(Icons.Default.DateRange, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column(modifier = Modifier.width(150.dp)) {
+                                    Text(range.label, color = PrimaryDarkGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text(range.description, color = Color(0xFF6A7394), fontSize = 10.sp, lineHeight = 12.sp)
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -903,7 +1009,15 @@ fun ReportsTab(
                 onClose = { selectedReport = null }
             )
         }
+
     }
+}
+
+private enum class ExportDateRange(val label: String, val description: String) {
+    Today("Hoy", "Solo reportes registrados hoy"),
+    Last7Days("Últimos 7 días", "Reportes de la última semana"),
+    ThisMonth("Este mes", "Reportes del mes actual"),
+    All("Todo", "Exportar todos los reportes")
 }
 
 @Composable
@@ -1051,6 +1165,7 @@ private fun NoticesTab() {
         NoticeExample(Icons.Default.Schedule, "Horario bancario", "Los depositos fuera de horario pueden demorar en confirmarse.")
     )
     var selectedNotice by remember { mutableStateOf<NoticeExample?>(null) }
+    var readNoticeTitles by rememberSaveable { mutableStateOf(setOf<String>()) }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Box(
@@ -1080,7 +1195,11 @@ private fun NoticesTab() {
             notices.forEach { notice ->
                 NoticeExampleItem(
                     notice = notice,
-                    onClick = { selectedNotice = notice }
+                    isRead = readNoticeTitles.contains(notice.title),
+                    onClick = {
+                        readNoticeTitles = readNoticeTitles + notice.title
+                        selectedNotice = notice
+                    }
                 )
             }
         }
@@ -1103,16 +1222,18 @@ private data class NoticeExample(
 @Composable
 private fun NoticeExampleItem(
     notice: NoticeExample,
+    isRead: Boolean,
     onClick: () -> Unit
 ) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
+            .height(104.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(20.dp),
-        color = Color.White,
+        color =  if (isRead) Color.White else Color(0xFFFFF6B8) ,
         shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, Color(0xFFE7EAF4))
+        border = BorderStroke(1.dp, if (isRead) Color(0xff96AFFF) else AccentGreen.copy(alpha = 0.75f))
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
@@ -1134,17 +1255,37 @@ private fun NoticeExampleItem(
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    notice.title,
-                    color = Color(0xFF17265F),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        notice.title,
+                        color = if (isRead) Color(0xFF344171) else Color(0xFF17265F),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = if (isRead) Color(0xFFE7EAF4) else PrimaryGreen
+                    ) {
+                        Text(
+                            if (isRead) "Leido" else "Nuevo",
+                            color = if (isRead) PrimaryGreen else Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
                 Text(
                     notice.message,
                     color = Color(0xFF6A7394),
                     fontSize = 12.sp,
-                    lineHeight = 16.sp
+                    lineHeight = 16.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
@@ -1156,49 +1297,63 @@ private fun NoticeExampleDialog(
     notice: NoticeExample,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+    Dialog(
         onDismissRequest = onDismiss,
-        icon = {
-            Surface(
-                modifier = Modifier.size(46.dp),
-                shape = RoundedCornerShape(16.dp),
-                color = Color(0xFFFFF6B8)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        notice.icon,
-                        contentDescription = null,
-                        tint = PrimaryGreen,
-                        modifier = Modifier.size(24.dp)
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            tonalElevation = 6.dp,
+            shadowElevation = 12.dp
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(46.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color(0xFFFFF6B8)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                notice.icon,
+                                contentDescription = null,
+                                tint = PrimaryGreen,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        notice.title,
+                        color = Color(0xFF17265F),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp,
+                        modifier = Modifier.weight(1f)
                     )
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    notice.message,
+                    color = Color(0xFF344171),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(18.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cerrar", color = PrimaryGreen, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
-        },
-        title = {
-            Text(
-                notice.title,
-                color = Color(0xFF17265F),
-                fontWeight = FontWeight.Bold
-            )
-        },
-        text = {
-            Text(
-                notice.message,
-                color = Color(0xFF344171),
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cerrar", color = PrimaryGreen, fontWeight = FontWeight.Bold)
-            }
-        },
-        containerColor = Color.White
-    )
+        }
+    }
 }
 
 @Composable
@@ -1226,18 +1381,18 @@ fun ReportItem(
     onRegularize: () -> Unit
 ) {
     val statusColor = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFF17265F)
+        ReportStatus.VALIDATED -> Color(0xFF166534)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
         ReportStatus.PENDING -> Color(0xFF17265F)
     }
     val statusBg = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFFFFF6B8)
+        ReportStatus.VALIDATED -> Color(0xFFDCFCE7)
         ReportStatus.REJECTED -> Color(0xFFFEE2E2)
         ReportStatus.PENDING -> Color(0xFFFFF6B8)
     }
     val cardBg = Color.White
     val statusAccent = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFF17265F)
+        ReportStatus.VALIDATED -> Color(0xFF22C55E)
         ReportStatus.REJECTED -> Color(0xFFEF4444)
         ReportStatus.PENDING -> Color(0xFFFFE500)
     }
@@ -1265,24 +1420,11 @@ fun ReportItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = report.solicitudNum, fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 12.sp)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-
-                        Text(report.fecha, color = Color(0xFF344171), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        Text(report.hora, color = Color(0xFF344171), fontSize = 10.sp)
-
-                    Surface(color = statusBg, shape = RoundedCornerShape(12.dp)) {
-                        Text(
-                            text = report.status.spanishLabel(),
-                            color = statusColor,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        )
-                    }
+                    Text(text = report.solicitudNum, fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 12.sp)
                     if (report.status == ReportStatus.REJECTED) {
                         Surface(
                             color = PrimaryGreen,
@@ -1300,26 +1442,92 @@ fun ReportItem(
                         }
                     }
                 }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+
+                        Text(report.fecha, color = Color(0xFF344171), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(report.hora, color = Color(0xFF344171), fontSize = 10.sp)
+
+                    Surface(color = statusBg, shape = RoundedCornerShape(12.dp)) {
+                        Text(
+                            text = report.status.spanishLabel(),
+                            color = statusColor,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
             }
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = report.empresa + " - " + report.cliente , fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF17265F))
-            Spacer(modifier = Modifier.height(8.dp))
-            HorizontalDivider(color = Color(0xFFE7EAF4))
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF344171), modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(text = report.banco, color = Color(0xFF344171), fontSize = 12.sp)
-                if (report.status == ReportStatus.VALIDATED) {
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text("Anexo: ${report.anexo ?: "RECAU MN"}", color = Color(0xFF17265F), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Importe: ${report.importe ?: "-"}", color = Color(0xFF17265F), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Op: ${report.operacion ?: "-"}", color = Color(0xFF17265F), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                } else {
-                    Spacer(modifier = Modifier.weight(1f))
-                    Text(text = report.hora, color = Color(0xFF344171), fontSize = 10.sp)
+                Surface(
+                    modifier = Modifier.size(46.dp),
+                    shape = CircleShape,
+                    color = Color(0xFFF8FAFF),
+                    border = BorderStroke(2.dp, PrimaryGreen.copy(alpha = 0.35f)),
+                    shadowElevation = 3.dp
+                ) {
+                    Image(
+                        painter = painterResource(id = report.companyLogoRes()),
+                        contentDescription = report.empresa,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(5.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = report.cliente.ifBlank { "Sin nombre" },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = Color(0xFF17265F),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (report.status == ReportStatus.VALIDATED) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Anexo: ${report.anexo ?: "RECAU MN"}",
+                                color = Color(0xFF17265F),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.CreditCard, contentDescription = null, tint = Color(0xFF344171), modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = report.banco,
+                            color = Color(0xFF344171),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (report.status == ReportStatus.VALIDATED) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Importe: ${report.importe ?: "-"}",
+                                color = Color(0xFF17265F),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
             }
@@ -1327,18 +1535,26 @@ fun ReportItem(
     }
 }
 
+private fun Report.companyLogoRes(): Int {
+    return if (empresa.contains("EVOLUTION", ignoreCase = true)) {
+        R.drawable.evo_logo
+    } else {
+        R.drawable.jch_logo
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.9f
+    val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.7f
     val statusColor = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFF17265F)
+        ReportStatus.VALIDATED -> Color(0xFF166534)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
         ReportStatus.PENDING -> Color(0xFF17265F)
     }
     val statusBg = when (report.status) {
-        ReportStatus.VALIDATED -> Color(0xFFFFF6B8)
+        ReportStatus.VALIDATED -> Color(0xFFDCFCE7)
         ReportStatus.REJECTED -> Color(0xFFFEE2E2)
         ReportStatus.PENDING -> Color(0xFFFFF6B8)
     }
@@ -1347,9 +1563,9 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = PrimaryDarkGreen,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        dragHandle = { BottomSheetDefaults.DragHandle() }
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.65f)) }
     ) {
         Column(
             modifier = Modifier
@@ -1364,6 +1580,7 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PlusJakartaSansFamily,
+                    color = Color.White,
                     modifier = Modifier.weight(1f)
                 )
                 Surface(color = statusBg, shape = RoundedCornerShape(14.dp)) {
@@ -1376,7 +1593,7 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
                     )
                 }
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.Gray)
+                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
                 }
             }
 
@@ -1409,13 +1626,13 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
 
             if (report.status == ReportStatus.REJECTED && !report.mensajeValidacion.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(14.dp))
-                Text("Motivo del rechazo", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                Text("Motivo del rechazo", fontSize = 11.sp, color = Color.White.copy(alpha = 0.82f), fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFFFF3F3),
-                    border = BorderStroke(1.dp, Color(0xFFFFCDD2))
+                    color = Color(0xFFF8FAFF),
+                    border = BorderStroke(1.dp, Color(0xFFB91C1C).copy(alpha = 0.32f))
                 ) {
                     Text(
                         text = report.mensajeValidacion,
@@ -1437,13 +1654,13 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
 private fun ReportVoucherSection(report: Report) {
     val imageUrl = report.imageUrl
 
-    Text("Voucher adjunto", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+    Text("Voucher adjunto", fontSize = 11.sp, color = Color.White.copy(alpha = 0.82f), fontWeight = FontWeight.Bold)
     Spacer(modifier = Modifier.height(8.dp))
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFE7EAF4))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFF)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
     ) {
         Column {
             when {
@@ -1466,14 +1683,14 @@ private fun ReportVoucherSection(report: Report) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(520.dp)
-                        .background(Color(0xFFF6F7FB)),
+                        .background(Color(0xFFF8FAFF)),
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFFF6F7FB))
+                    .background(PrimaryGreen)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1484,11 +1701,11 @@ private fun ReportVoucherSection(report: Report) {
                         else -> Icons.Default.CameraAlt
                     },
                     contentDescription = null,
-                    tint = Color.Gray,
+                    tint = AccentGreen,
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text(report.voucherName ?: "Voucher", color = Color.Gray, fontSize = 11.sp)
+                Text(report.voucherName ?: "Voucher", color = Color.White, fontSize = 11.sp)
             }
         }
     }
@@ -1502,18 +1719,18 @@ private fun PdfReportPreview(uriString: String, modifier: Modifier = Modifier) {
 @Composable
 private fun MissingVoucherPreview(modifier: Modifier = Modifier) {
     Box(
-        modifier = modifier.background(Color(0xFFF6F7FB)),
+        modifier = modifier.background(Color(0xFFF8FAFF)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
                 Icons.Default.ImageNotSupported,
                 contentDescription = null,
-                tint = Color(0xFF6A7394),
+                tint = PrimaryGreen,
                 modifier = Modifier.size(42.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Sin voucher adjunto", color = Color(0xFF17265F), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Sin voucher adjunto", color = PrimaryDarkGreen, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -1528,11 +1745,11 @@ private fun StatusBanner(status: ReportStatus) {
 
     when (status) {
         ReportStatus.VALIDATED -> {
-            bg = Color(0xFFFFF6B8)
+            bg = Color(0xFFDCFCE7)
             icon = Icons.Default.CheckCircle
             title = "DEPOSITO CONFIRMADO"
             subtitle = "Validado por el sistema"
-            color = Color(0xFF17265F)
+            color = Color(0xFF166534)
         }
         ReportStatus.REJECTED -> {
             bg = Color(0xFFFFF3F3)
@@ -1564,7 +1781,7 @@ private fun StatusBanner(status: ReportStatus) {
 
 @Composable
 private fun DetailRows(rows: List<Pair<String, String>>) {
-    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = Color.White) {
+    Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = Color(0xFFF8FAFF)) {
         Column {
             rows.forEachIndexed { index, row ->
                 Row(
@@ -1573,10 +1790,10 @@ private fun DetailRows(rows: List<Pair<String, String>>) {
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(row.first, color = Color.Gray, fontSize = 12.sp, modifier = Modifier.width(112.dp))
+                    Text(row.first, color = PrimaryGreen.copy(alpha = 0.72f), fontSize = 12.sp, modifier = Modifier.width(112.dp))
                     Text(
                         row.second,
-                        color = Color(0xFF17265F),
+                        color = PrimaryDarkGreen,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f),
@@ -1633,6 +1850,29 @@ private fun exportReportsForExcel(context: Context, reports: List<Report>) {
     context.startActivity(Intent.createChooser(intent, "Exportar reporte"))
 }
 
+private fun List<Report>.filterByExportRange(range: ExportDateRange): List<Report> {
+    if (range == ExportDateRange.All) return this
+
+    val parser = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+    val today = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }
+    val start = when (range) {
+        ExportDateRange.Today -> today.clone() as Calendar
+        ExportDateRange.Last7Days -> (today.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -6) }
+        ExportDateRange.ThisMonth -> (today.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, 1) }
+        ExportDateRange.All -> today
+    }
+
+    return filter { report ->
+        val reportDate = runCatching { parser.parse(report.fecha) }.getOrNull() ?: return@filter false
+        !reportDate.before(start.time) && !reportDate.after(today.time)
+    }
+}
+
 private fun String.csvCell(): String = "\"${replace("\"", "\"\"")}\""
 
 @Composable
@@ -1649,7 +1889,7 @@ fun SettingsTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PrimaryGreen)
-                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Column {
                 Text(
@@ -1674,7 +1914,9 @@ fun SettingsTab(
             Card(
                 modifier = Modifier.padding(16.dp).fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(modifier = Modifier.padding(20.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1685,8 +1927,8 @@ fun SettingsTab(
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
-                            Text("Juan Perez Garcia", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Personal de Caja", color = Color.Gray, fontSize = 12.sp)
+                            Text("Juan Perez Garcia", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PrimaryDarkGreen)
+                            Text("Personal de Caja", color = Color(0xFF344171), fontSize = 12.sp)
                         }
                     }
                     Spacer(modifier = Modifier.height(20.dp))
@@ -1696,10 +1938,16 @@ fun SettingsTab(
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Text("CUENTA", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            Text("CUENTA", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
 
-            Surface(modifier = Modifier.padding(horizontal = 16.dp), shape = RoundedCornerShape(24.dp), color = Color.White) {
+            Surface(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
+                shadowElevation = 4.dp
+            ) {
                 Column {
                     SettingsActionRow(
                         Icons.Default.Key,
@@ -1718,10 +1966,16 @@ fun SettingsTab(
             }
 
             Spacer(modifier = Modifier.height(18.dp))
-            Text("APLICACION", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            Text("APLICACION", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
 
-            Surface(modifier = Modifier.padding(horizontal = 16.dp), shape = RoundedCornerShape(24.dp), color = Color.White) {
+            Surface(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
+                shadowElevation = 4.dp
+            ) {
                 Column {
                     SettingsRow(Icons.Default.Info, "Version", BuildConfig.VERSION_NAME)
                     HorizontalDivider(color = Color(0xFFE7EAF4))
@@ -1737,7 +1991,13 @@ fun SettingsTab(
     }
 
     if (showPasswordDialog) {
-        ChangePasswordDialog(onDismiss = { showPasswordDialog = false })
+        ChangePasswordDialog(
+            onDismiss = { showPasswordDialog = false },
+            onPasswordChanged = {
+                showPasswordDialog = false
+                onLogout()
+            }
+        )
     }
 
     if (showLogoutDialog) {
@@ -1753,7 +2013,12 @@ fun SettingsTab(
 
 @Composable
 fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
-    Row(modifier = Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Icon(icon, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(12.dp))
         Text(label, fontSize = 12.sp, color = Color.Gray, modifier = Modifier.width(60.dp))
@@ -1792,7 +2057,10 @@ fun SettingsActionRow(
 }
 
 @Composable
-private fun ChangePasswordDialog(onDismiss: () -> Unit) {
+private fun ChangePasswordDialog(
+    onDismiss: () -> Unit,
+    onPasswordChanged: () -> Unit
+) {
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
@@ -1806,20 +2074,21 @@ private fun ChangePasswordDialog(onDismiss: () -> Unit) {
     AlertDialog(
         modifier = Modifier.imePadding(),
         onDismissRequest = onDismiss,
-        containerColor = Color.White,
+        containerColor = Color(0xFFF8FAFF),
         shape = RoundedCornerShape(24.dp),
         title = {
             Text(
                 "Cambiar contrasena",
                 fontWeight = FontWeight.Bold,
-                fontFamily = PlusJakartaSansFamily
+                fontFamily = PlusJakartaSansFamily,
+                color = PrimaryDarkGreen
             )
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "Ingresa tu contrasena actual y define una nueva.",
-                    color = Color.Gray,
+                    color = Color(0xFF344171),
                     fontSize = 12.sp
                 )
                 PasswordField(
@@ -1866,7 +2135,7 @@ private fun ChangePasswordDialog(onDismiss: () -> Unit) {
                         newPassword != confirmPassword -> "Las contrasenas nuevas no coinciden."
                         else -> null
                     }
-                    if (errorMessage == null) onDismiss()
+                    if (errorMessage == null) onPasswordChanged()
                 },
                 enabled = canSave,
                 shape = RoundedCornerShape(14.dp),
@@ -1877,7 +2146,7 @@ private fun ChangePasswordDialog(onDismiss: () -> Unit) {
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = Color.Gray)
+                Text("Cancelar", color = PrimaryGreen)
             }
         }
     )
@@ -1966,8 +2235,13 @@ private fun PasswordField(
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.White,
             unfocusedContainerColor = Color.White,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent
+            focusedTextColor = PrimaryDarkGreen,
+            unfocusedTextColor = PrimaryDarkGreen,
+            focusedLabelColor = PrimaryGreen,
+            unfocusedLabelColor = Color(0xFF344171),
+            focusedIndicatorColor = AccentGreen,
+            unfocusedIndicatorColor = Color(0xFFE7EAF4),
+            cursorColor = PrimaryGreen
         )
     )
 }

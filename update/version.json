@@ -1,8 +1,8 @@
 {
-  "versionCode": 5,
-  "versionName": "1.4",
+  "versionCode": 6,
+  "versionName": "1.5",
   "updatedAt": "2026-06-25",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.4.apk",
-  "releaseNotes": "Nueva version con ajustes de chat, manejo del boton atras, menu inferior adaptado a la barra Android y mejoras de posicion del campo de mensaje con teclado.",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.5.apk",
+  "releaseNotes": "Nueva version con mejoras en reportes, logos de empresas, exportacion Excel por rango de fechas, ajustes visuales de avisos, menu inferior integrado con la barra Android y mejoras del registro de depositos.",
   "required": false
 }

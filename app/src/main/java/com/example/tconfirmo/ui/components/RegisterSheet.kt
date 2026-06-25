@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -73,11 +74,13 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.tconfirmo.R
 import coil.compose.rememberAsyncImagePainter
 import com.example.tconfirmo.data.DepositDraft
 import com.example.tconfirmo.ui.components.PdfPreview
@@ -405,14 +408,14 @@ private fun CartContent(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Registro de depositos",
+                    text = "Registro de depósitos",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF17265F),
                     fontFamily = PlusJakartaSansFamily
                 )
                 Text(
-                    text = "${items.size} deposito${if (items.size == 1) "" else "s"} en el registro",
+                    text = "${items.size} depósito${if (items.size == 1) "" else "s"} en el registro",
                     fontSize = 12.sp,
                     color = Color(0xFF6A7394)
                 )
@@ -462,7 +465,7 @@ private fun CartContent(
                 ),
                 border = BorderStroke(1.dp, PrimaryGreen)
             ) {
-                Text("+  Agregar otro deposito", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("+  Agregar otro depósito", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
             Button(
                 onClick = onSubmit,
@@ -480,9 +483,9 @@ private fun CartContent(
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = when {
-                        items.isEmpty() -> "Agrega depositos"
+                        items.isEmpty() -> "Agrega depósitos"
                         !canSubmit -> "Completa los datos"
-                        else -> "Enviar ${items.size} deposito${if (items.size > 1) "s" else ""}"
+                        else -> "Enviar ${items.size} depósito${if (items.size > 1) "s" else ""}"
                     },
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
@@ -525,14 +528,14 @@ private fun NewDepositContent(
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = if (isEditing) "Modificar deposito" else "Nuevo deposito",
+                    text = if (isEditing) "Modificar depósito" else "Nuevo depósito",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF17265F),
                     fontFamily = PlusJakartaSansFamily
                 )
                 Text(
-                    if (isEditing) "Actualiza los datos del deposito" else "Completa los datos y adjunta el voucher",
+                    if (isEditing) "Actualiza los datos del depósito" else "Completa los datos y adjunta el voucher",
                     fontSize = 11.sp,
                     color = Color(0xFF6A7394)
                 )
@@ -605,7 +608,7 @@ private fun SuccessContent(count: Int) {
             }
             Spacer(modifier = Modifier.height(18.dp))
             Text(
-                text = if (count == 1) "Â¡Solicitud Enviada!" else "Â¡Solicitudes Enviadas!",
+                text = if (count == 1) "¡Solicitud enviada!" else "¡Solicitudes enviadas!",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF17265F),
@@ -613,7 +616,7 @@ private fun SuccessContent(count: Int) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Apareceran en el Chat y en Reportes.",
+                text = "Aparecerán en Chat y en Reportes.",
                 fontSize = 14.sp,
                 color = Color(0xFF6A7394)
             )
@@ -768,7 +771,7 @@ private fun EmptyCart() {
         border = BorderStroke(1.dp, Color(0xFFE7EAF4))
     ) {
         Text(
-            text = "Aun no hay depositos. Agrega una foto del voucher y completa sus datos.",
+            text = "Aún no hay depósitos. Agrega una foto del voucher y completa sus datos.",
             color = Color(0xFF6A7394),
             fontSize = 13.sp,
             modifier = Modifier.padding(16.dp)
@@ -824,6 +827,8 @@ private fun OptionPickerSheet(
     onDismiss: () -> Unit,
     onSelected: (String) -> Unit
 ) {
+    val isEmpresaPicker = title.contains("Empresa", ignoreCase = true)
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = Color.White,
@@ -875,16 +880,32 @@ private fun OptionPickerSheet(
                     ) {
                         Surface(
                             modifier = Modifier.size(32.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) PrimaryGreen else Color(0xFFE7EAF4)
+                            shape = CircleShape,
+                            color = if (isEmpresaPicker) Color.White else if (isSelected) PrimaryGreen else Color(0xFFE7EAF4),
+                            border = if (isEmpresaPicker) BorderStroke(
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) PrimaryGreen else Color(0xFFE7EAF4)
+                            ) else null
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = option.take(2).uppercase(),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) Color.White else Color(0xFF9EA6C4)
-                                )
+                                if (isEmpresaPicker) {
+                                    Image(
+                                        painter = painterResource(id = option.companyLogoRes()),
+                                        contentDescription = option,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(4.dp)
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                } else {
+                                    Text(
+                                        text = option.take(2).uppercase(),
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) Color.White else Color(0xFF9EA6C4)
+                                    )
+                                }
                             }
                         }
                         Spacer(modifier = Modifier.width(16.dp))
@@ -916,6 +937,14 @@ private fun OptionPickerSheet(
                 }
             }
         }
+    }
+}
+
+private fun String.companyLogoRes(): Int {
+    return if (contains("EVOLUTION", ignoreCase = true)) {
+        R.drawable.evo_logo
+    } else {
+        R.drawable.jch_logo
     }
 }
 
@@ -1038,7 +1067,7 @@ private fun PdfVoucherView(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.height(12.dp))
             Text("Voucher PDF adjunto", color = Color(0xFF17265F), fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Se registrara como documento", color = Color(0xFF6A7394), fontSize = 12.sp)
+            Text("Se registrará como documento", color = Color(0xFF6A7394), fontSize = 12.sp)
         }
     }
 }
