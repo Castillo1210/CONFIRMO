@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.webkit.MimeTypeMap
+import android.widget.Toast
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
@@ -110,6 +111,7 @@ fun MainScreen(
     var registerResetKey by remember { mutableStateOf(0) }
     var messages by remember { mutableStateOf(getInitialMessages()) }
     var reports by remember { mutableStateOf(getInitialReports()) }
+    var reportsBackPressCount by remember { mutableStateOf(0) }
 
     fun updatePendingSharedVouchers(values: List<String>) {
         registerSharedVoucherUriStrings = values
@@ -127,8 +129,28 @@ fun MainScreen(
         }
     }
 
-    BackHandler(enabled = selectedTab == 1) {
-        selectedTab = 0
+    LaunchedEffect(selectedTab) {
+        if (selectedTab != 0) {
+            reportsBackPressCount = 0
+        }
+    }
+
+    BackHandler {
+        if (selectedTab != 0) {
+            selectedTab = 0
+            reportsBackPressCount = 0
+            return@BackHandler
+        }
+
+        reportsBackPressCount += 1
+        when (reportsBackPressCount) {
+            2 -> Toast.makeText(
+                context,
+                "Presiona atrás una vez más para salir de la aplicación.",
+                Toast.LENGTH_SHORT
+            ).show()
+            3 -> (context as? Activity)?.finish()
+        }
     }
 
     // Config anterior del menu inferior: fondo blanco, activo PrimaryGreen, indicador Color(0xFFFFF6B8).
@@ -162,9 +184,11 @@ fun MainScreen(
                         pressedElevation = 14.dp,
                         focusedElevation = 12.dp,
                         hoveredElevation = 12.dp
-                    )
+                    ),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.size(46.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Nuevo deposito")
+                    Icon(Icons.Default.Add, contentDescription = "Nuevo deposito", modifier = Modifier.size(22.dp))
                 }
             }
         },
@@ -608,22 +632,36 @@ fun ChatTab(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .offset(y = 10.dp)
+                        .padding(horizontal = 12.dp, vertical = 0.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
-                    FloatingActionButton(
-                        onClick = onOpenRegister,
-                        containerColor = PrimaryGreen,
-                        contentColor = Color.White,
-                        elevation = FloatingActionButtonDefaults.elevation(
-                            defaultElevation = 10.dp,
-                            pressedElevation = 14.dp,
-                            focusedElevation = 12.dp,
-                            hoveredElevation = 12.dp
-                        ),
-                        modifier = Modifier.size(52.dp)
+                    Surface(
+                        modifier = Modifier.size(54.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = Color.Transparent,
+                        border = BorderStroke(2.dp, Color(0xFF0A84FF).copy(alpha = focusedBorderAlpha))
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = "Nuevo deposito")
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            FloatingActionButton(
+                                onClick = onOpenRegister,
+                                containerColor = PrimaryGreen,
+                                contentColor = Color.White,
+                                elevation = FloatingActionButtonDefaults.elevation(
+                                    defaultElevation = 10.dp,
+                                    pressedElevation = 14.dp,
+                                    focusedElevation = 12.dp,
+                                    hoveredElevation = 12.dp
+                                ),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier.size(46.dp)
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = "Nuevo deposito", modifier = Modifier.size(22.dp))
+                            }
+                        }
                     }
                 }
 
@@ -1563,9 +1601,9 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onClose,
         sheetState = sheetState,
-        containerColor = PrimaryDarkGreen,
+        containerColor = Color(0xFFF8FAFF),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color.White.copy(alpha = 0.65f)) }
+        dragHandle = { BottomSheetDefaults.DragHandle(color = PrimaryGreen.copy(alpha = 0.45f)) }
     ) {
         Column(
             modifier = Modifier
@@ -1580,7 +1618,7 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = PlusJakartaSansFamily,
-                    color = Color.White,
+                    color = PrimaryDarkGreen,
                     modifier = Modifier.weight(1f)
                 )
                 Surface(color = statusBg, shape = RoundedCornerShape(14.dp)) {
@@ -1593,7 +1631,7 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
                     )
                 }
                 IconButton(onClick = onClose) {
-                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.White)
+                    Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = PrimaryDarkGreen)
                 }
             }
 
@@ -1626,7 +1664,7 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
 
             if (report.status == ReportStatus.REJECTED && !report.mensajeValidacion.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(14.dp))
-                Text("Motivo del rechazo", fontSize = 11.sp, color = Color.White.copy(alpha = 0.82f), fontWeight = FontWeight.Bold)
+                Text("Motivo del rechazo", fontSize = 11.sp, color = PrimaryDarkGreen.copy(alpha = 0.72f), fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -1654,13 +1692,13 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
 private fun ReportVoucherSection(report: Report) {
     val imageUrl = report.imageUrl
 
-    Text("Voucher adjunto", fontSize = 11.sp, color = Color.White.copy(alpha = 0.82f), fontWeight = FontWeight.Bold)
+    Text("Voucher adjunto", fontSize = 11.sp, color = PrimaryDarkGreen.copy(alpha = 0.72f), fontWeight = FontWeight.Bold)
     Spacer(modifier = Modifier.height(8.dp))
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFF)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.22f))
+        border = BorderStroke(1.dp, Color(0xFFE7EAF4))
     ) {
         Column {
             when {
