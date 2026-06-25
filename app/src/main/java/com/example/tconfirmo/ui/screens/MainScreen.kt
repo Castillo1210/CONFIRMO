@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.webkit.MimeTypeMap
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -12,6 +13,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -38,12 +43,15 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
@@ -110,18 +118,51 @@ fun MainScreen(
         }
     }
 
+    BackHandler(enabled = selectedTab == 1) {
+        selectedTab = 1
+    }
+
     Scaffold(
         bottomBar = {
             if (selectedTab != 1) {
-                NavigationBar(
-                    containerColor = Color.White,
-                    tonalElevation = 8.dp
+                Surface(
+                    color = Color.White,
+                    tonalElevation = 10.dp
                 ) {
-                    NavigationBarItem(
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                    ) {
+                        NavigationBar(
+                            containerColor = Color.White,
+                            tonalElevation = 0.dp,
+                            windowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(55.dp)
+                        ) {
+                            NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        icon = { Icon(Icons.AutoMirrored.Filled.Message, contentDescription = "Chat") },
-                        label = { Text("Chat", fontSize = 9.sp) },
+                        icon = {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy((1).dp)
+                            ) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.Message,
+                                    contentDescription = "Chat",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    "Chat",
+                                    fontSize = 10.sp,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                        },
+                        label = null,
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
@@ -131,8 +172,23 @@ fun MainScreen(
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        icon = { Icon(Icons.Default.BarChart, contentDescription = "Reportes") },
-                        label = { Text("Reportes", fontSize = 9.sp) },
+                        icon = {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy((1).dp)
+                            ) {
+                            Icon(Icons.Default.BarChart,
+                                contentDescription = "Reportes",
+                                modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    "Reportes",
+                                    fontSize = 10.sp,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                        },
+                        label = null,
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
@@ -142,8 +198,26 @@ fun MainScreen(
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
-                        icon = { Icon(Icons.Default.Notifications, contentDescription = "Avisos") },
-                        label = { Text("Avisos", fontSize = 9.sp) },
+                        icon = {
+
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy((1).dp)
+                            )
+                            {
+
+                                Icon(Icons.Default.Notifications,
+                                    contentDescription = "Avisos",
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    "Avisos",
+                                    fontSize = 10.sp,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                       },
+                        label = null,
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
@@ -153,14 +227,33 @@ fun MainScreen(
                     NavigationBarItem(
                         selected = selectedTab == 3,
                         onClick = { selectedTab = 3 },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Configuracion") },
-                        label = { Text("Ajustes", fontSize = 9.sp) },
+                        icon = {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy((1).dp)
+                            )
+                            {
+
+                                Icon(Icons.Default.Settings,
+                                    contentDescription = "Configuracion",
+                                            modifier = Modifier.size(22.dp)
+                                )
+                                Text(
+                                    "Configuracion",
+                                    fontSize = 10.sp,
+                                    lineHeight = 10.sp
+                                )
+                            }
+                        },
+                        label = null,
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = PrimaryGreen,
                             selectedTextColor = PrimaryGreen,
                             indicatorColor = Color(0xFFFFF6B8)
                         )
                     )
+                        }
+                    }
                 }
             }
         }
@@ -303,6 +396,17 @@ fun ChatTab(
     var searchText by remember { mutableStateOf("") }
     var currentMatch by remember { mutableStateOf(0) }
     var openedVoucher by remember { mutableStateOf<VoucherCard?>(null) }
+    var inputFocused by remember { mutableStateOf(false) }
+    val inputBlinkTransition = rememberInfiniteTransition(label = "ChatInputBlink")
+    val focusedBorderAlpha by inputBlinkTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 520),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "ChatInputBorderAlpha"
+    )
     val emojis = remember {
         listOf(
             "\uD83D\uDE00", "\uD83D\uDE01", "\uD83D\uDE02", "\uD83D\uDE0A",
@@ -312,6 +416,7 @@ fun ChatTab(
     }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
     val matches = remember(messages, searchText) {
         if (searchText.isBlank()) {
             emptyList()
@@ -419,126 +524,145 @@ fun ChatTab(
                 modifier = Modifier.matchParentSize(),
                 contentScale = ContentScale.Crop
             )
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                contentPadding = PaddingValues(top = 12.dp, bottom = 84.dp),
-                reverseLayout = false
-            ) {
-                items(
-                    items = messages,
-                    key = { it.id }
-                ) { msg ->
-                    val index = messages.indexOf(msg)
-                    MessageBubble(
-                        message = msg,
-                        isSearchMatch = index == activeMatchIndex,
-                        onVoucherClick = { openedVoucher = it }
-                    )
-                }
-            }
-
-            // Input Area
-            Box(
+            Column(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
+                    .fillMaxSize()
+                    .navigationBarsPadding()
                     .imePadding()
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = Color.White,
-                    shape = RoundedCornerShape(28.dp),
-                    shadowElevation = 8.dp
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+                    reverseLayout = false
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    items(
+                        items = messages,
+                        key = { it.id }
+                    ) { msg ->
+                        val index = messages.indexOf(msg)
+                        MessageBubble(
+                            message = msg,
+                            isSearchMatch = index == activeMatchIndex,
+                            onVoucherClick = { openedVoucher = it }
+                        )
+                    }
+                }
+
+                // Input Area
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = 25.dp)
+                        .padding(horizontal = 12.dp)
+                        .padding(top = 4.dp, bottom = 0.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = Color.White,
+                        shape = RoundedCornerShape(28.dp),
+                        border = if (inputFocused) {
+                            BorderStroke(2.dp, Color(0xFF0A84FF).copy(alpha = focusedBorderAlpha))
+                        } else {
+                            null
+                        },
+                        shadowElevation = 8.dp
                     ) {
-                        IconButton(
-                            onClick = onOpenRegister,
-                            modifier = Modifier.size(34.dp)
+                        Row(
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "Registrar voucher", tint = Color.Black, modifier = Modifier.size(24.dp))
-                        }
-                        Box {
                             IconButton(
-                                onClick = { emojiPickerOpen = true },
+                                onClick = onOpenRegister,
                                 modifier = Modifier.size(34.dp)
                             ) {
-                                Icon(Icons.Default.InsertEmoticon, contentDescription = "Emoji", tint = Color.Black, modifier = Modifier.size(22.dp))
+                                Icon(Icons.Default.Add, contentDescription = "Registrar voucher", tint = Color.Black, modifier = Modifier.size(24.dp))
                             }
-                            DropdownMenu(
-                                expanded = emojiPickerOpen,
-                                onDismissRequest = { emojiPickerOpen = false },
-                                shape = RoundedCornerShape(18.dp),
-                                containerColor = Color.White,
-                                shadowElevation = 8.dp
-                            ) {
-                                emojis.chunked(6).forEach { rowEmojis ->
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        rowEmojis.forEach { emoji ->
-                                            Text(
-                                                text = emoji,
-                                                fontSize = 22.sp,
-                                                fontFamily = FontFamily.Default,
-                                                modifier = Modifier
-                                                    .size(34.dp)
-                                                    .clickable {
-                                                        textInput += emoji
-                                                        emojiPickerOpen = false
-                                                    }
-                                                    .padding(4.dp)
-                                            )
+                            Box {
+                                IconButton(
+                                    onClick = { emojiPickerOpen = true },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(Icons.Default.InsertEmoticon, contentDescription = "Emoji", tint = Color.Black, modifier = Modifier.size(22.dp))
+                                }
+                                DropdownMenu(
+                                    expanded = emojiPickerOpen,
+                                    onDismissRequest = { emojiPickerOpen = false },
+                                    shape = RoundedCornerShape(18.dp),
+                                    containerColor = Color.White,
+                                    shadowElevation = 8.dp
+                                ) {
+                                    emojis.chunked(6).forEach { rowEmojis ->
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            rowEmojis.forEach { emoji ->
+                                                Text(
+                                                    text = emoji,
+                                                    fontSize = 22.sp,
+                                                    fontFamily = FontFamily.Default,
+                                                    modifier = Modifier
+                                                        .size(34.dp)
+                                                        .clickable {
+                                                            textInput += emoji
+                                                            emojiPickerOpen = false
+                                                        }
+                                                        .padding(4.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
 
-                        BasicTextField(
-                            value = textInput,
-                            onValueChange = { textInput = it },
-                            singleLine = true,
-                            textStyle = LocalTextStyle.current.copy(
-                                fontSize = 14.sp,
-                                color = Color.Black,
-                                fontFamily = FontFamily.Default
-                            ),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(40.dp)
-                                .padding(horizontal = 4.dp),
-                            decorationBox = { innerTextField ->
-                                Box(
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    if (textInput.isBlank()) {
-                                        Text("Escribe un mensaje", fontSize = 14.sp, color = Color.Gray)
+                            BasicTextField(
+                                value = textInput,
+                                onValueChange = { textInput = it },
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    fontSize = 14.sp,
+                                    color = Color.Black,
+                                    fontFamily = FontFamily.Default
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(40.dp)
+                                    .padding(horizontal = 4.dp)
+                                    .onFocusChanged { focusState ->
+                                        inputFocused = focusState.isFocused
+                                        if (focusState.isFocused) keyboardController?.show()
+                                    },
+                                decorationBox = { innerTextField ->
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        if (textInput.isBlank()) {
+                                            Text("Escribe un mensaje", fontSize = 14.sp, color = Color.Gray)
+                                        }
+                                        innerTextField()
                                     }
-                                    innerTextField()
                                 }
-                            }
-                        )
-                        IconButton(
-                            onClick = {
-                                if (textInput.isBlank()) return@IconButton
-                                onSendMessage(textInput)
-                                textInput = ""
-                            },
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Enviar",
-                                tint = if (textInput.isBlank()) Color.Gray else Color.Black,
-                                modifier = Modifier.size(22.dp)
                             )
+                            IconButton(
+                                onClick = {
+                                    if (textInput.isBlank()) return@IconButton
+                                    onSendMessage(textInput)
+                                    textInput = ""
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.Send,
+                                    contentDescription = "Enviar",
+                                    tint = if (textInput.isBlank()) Color.Gray else Color.Black,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -933,7 +1057,7 @@ private fun NoticesTab() {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PrimaryGreen)
-                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Column {
                 Text(
@@ -943,7 +1067,7 @@ private fun NoticesTab() {
                     fontSize = 18.sp,
                     fontFamily = PlusJakartaSansFamily
                 )
-                Text("Notificaciones y comunicados", color = Color(0xFFFFF6B8), fontSize = 12.sp)
+                Text("Notificaciones y comunicados", color = Color(0xFFFFF6B8), fontSize = 12.sp, modifier = Modifier.height(20.dp))
             }
         }
 
@@ -1539,67 +1663,75 @@ fun SettingsTab(
             }
         }
 
-        // Profile Card
-        Card(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = 96.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(modifier = Modifier.size(56.dp), shape = RoundedCornerShape(16.dp), color = PrimaryGreen) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("JP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            // Profile Card
+            Card(
+                modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Surface(modifier = Modifier.size(56.dp), shape = RoundedCornerShape(16.dp), color = PrimaryGreen) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text("JP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text("Juan Perez Garcia", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Personal de Caja", color = Color.Gray, fontSize = 12.sp)
                         }
                     }
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Column {
-                        Text("Juan Perez Garcia", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("Personal de Caja", color = Color.Gray, fontSize = 12.sp)
-                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                    SettingsRow(Icons.Default.Store, "Tienda", "PIURA AV. SANCHEZ CERRO 1222")
+                    SettingsRow(Icons.Default.Phone, "Celular", "987654321")
                 }
-                Spacer(modifier = Modifier.height(20.dp))
-                SettingsRow(Icons.Default.Store, "Tienda", "PIURA AV. SANCHEZ CERRO 1222")
-                SettingsRow(Icons.Default.Phone, "Celular", "987654321")
             }
-        }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("CUENTA", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("CUENTA", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Surface(modifier = Modifier.padding(horizontal = 16.dp), shape = RoundedCornerShape(24.dp), color = Color.White) {
-            Column {
-                SettingsActionRow(
-                    Icons.Default.Key,
-                    "Cambiar contrasena",
-                    "Actualiza tu acceso",
-                    onClick = { showPasswordDialog = true }
-                )
-                SettingsActionRow(
-                    Icons.Default.ExitToApp,
-                    "Cerrar sesion",
-                    "Salir de la aplicacion",
-                    isDestructive = true,
-                    onClick = { showLogoutDialog = true }
-                )
+            Surface(modifier = Modifier.padding(horizontal = 16.dp), shape = RoundedCornerShape(24.dp), color = Color.White) {
+                Column {
+                    SettingsActionRow(
+                        Icons.Default.Key,
+                        "Cambiar contrasena",
+                        "Actualiza tu acceso",
+                        onClick = { showPasswordDialog = true }
+                    )
+                    SettingsActionRow(
+                        Icons.Default.ExitToApp,
+                        "Cerrar sesion",
+                        "Salir de la aplicacion",
+                        isDestructive = true,
+                        onClick = { showLogoutDialog = true }
+                    )
+                }
             }
-        }
 
-        Spacer(modifier = Modifier.height(18.dp))
-        Text("APLICACION", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(18.dp))
+            Text("APLICACION", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
 
-        Surface(modifier = Modifier.padding(horizontal = 16.dp), shape = RoundedCornerShape(24.dp), color = Color.White) {
-            Column {
-                SettingsRow(Icons.Default.Info, "Version", BuildConfig.VERSION_NAME)
-                HorizontalDivider(color = Color(0xFFE7EAF4))
-                SettingsActionRow(
-                    Icons.Default.SystemUpdate,
-                    "Actualizar version",
-                    "Buscar nueva version en GitHub",
-                    onClick = onCheckForUpdates
-                )
+            Surface(modifier = Modifier.padding(horizontal = 16.dp), shape = RoundedCornerShape(24.dp), color = Color.White) {
+                Column {
+                    SettingsRow(Icons.Default.Info, "Version", BuildConfig.VERSION_NAME)
+                    HorizontalDivider(color = Color(0xFFE7EAF4))
+                    SettingsActionRow(
+                        Icons.Default.SystemUpdate,
+                        "Actualizar version",
+                        "Buscar nueva version en GitHub",
+                        onClick = onCheckForUpdates
+                    )
+                }
             }
         }
     }
@@ -1806,9 +1938,16 @@ private fun PasswordField(
     visible: Boolean,
     onVisibilityChange: () -> Unit
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     TextField(
         value = value,
         onValueChange = onValueChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) keyboardController?.show()
+            },
         label = { Text(label, fontSize = 12.sp) },
         singleLine = true,
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -1829,8 +1968,7 @@ private fun PasswordField(
             unfocusedContainerColor = Color.White,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent
-        ),
-        modifier = Modifier.fillMaxWidth()
+        )
     )
 }
 

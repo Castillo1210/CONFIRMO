@@ -1,8 +1,8 @@
 {
-  "versionCode": 4,
-  "versionName": "1.3",
-  "updatedAt": "2026-06-24",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.3.apk",
-  "releaseNotes": "Nueva version con tema azul y amarillo, avisos con detalle, transiciones de navegacion y mejoras para que el teclado no tape los campos.",
+  "versionCode": 5,
+  "versionName": "1.4",
+  "updatedAt": "2026-06-25",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.4.apk",
+  "releaseNotes": "Nueva version con ajustes de chat, manejo del boton atras, menu inferior adaptado a la barra Android y mejoras de posicion del campo de mensaje con teclado.",
   "required": false
 }

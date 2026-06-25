@@ -72,6 +72,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -923,6 +924,7 @@ private fun OptionPickerSheet(
 private fun ClientField(value: String, onValueChange: (String) -> Unit) {
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     TextField(
         value = value,
@@ -933,6 +935,7 @@ private fun ClientField(value: String, onValueChange: (String) -> Unit) {
             .bringIntoViewRequester(bringIntoViewRequester)
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
+                    keyboardController?.show()
                     scope.launch {
                         delay(250)
                         bringIntoViewRequester.bringIntoView()

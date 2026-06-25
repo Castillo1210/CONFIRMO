@@ -2,6 +2,7 @@ package com.example.tconfirmo.ui.screens
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,8 +18,12 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Phone
@@ -40,11 +45,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -54,6 +61,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
 import com.example.tconfirmo.ui.theme.TConfirmoTheme
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
@@ -276,6 +285,7 @@ private fun LoginFormSection(
             modifier = Modifier
                 .padding(start = 24.dp, top = 28.dp, end = 24.dp, bottom = 20.dp)
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
         ) {
             Text(
                 text = "Iniciar sesion",
@@ -330,7 +340,7 @@ private fun LoginFormSection(
                 Text("Ingresar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -346,6 +356,7 @@ private fun LoginFormSection(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun CustomTextField(
     value: String,
@@ -358,10 +369,25 @@ private fun CustomTextField(
     onPasswordToggle: (() -> Unit)? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
     TextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .bringIntoViewRequester(bringIntoViewRequester)
+            .onFocusChanged { focusState ->
+                if (focusState.isFocused) {
+                    keyboardController?.show()
+                    scope.launch {
+                        delay(250)
+                        bringIntoViewRequester.bringIntoView()
+                    }
+                }
+            },
         shape = RoundedCornerShape(16.dp),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color.White,
