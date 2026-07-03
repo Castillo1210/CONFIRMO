@@ -1,8 +1,8 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6",
-  "updatedAt": "2026-06-25",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.6.apk",
-  "releaseNotes": "Nueva version con mejoras en boton atras, ajuste visual del modal de reportes, botones de nuevo deposito compactos, menu Excel tipo pensamiento y refinamientos visuales de chat y reportes.",
+  "versionCode": 8,
+  "versionName": "1.7",
+  "updatedAt": "2026-07-03",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.7.apk",
+  "releaseNotes": "Nueva version con API Bridge en Google Cloud, login real con modo prueba, SignalR para chat y reportes, FCM token generado por Firebase, cambio de contrasena y sincronizacion de reportes desde la API.",
   "required": false
 }

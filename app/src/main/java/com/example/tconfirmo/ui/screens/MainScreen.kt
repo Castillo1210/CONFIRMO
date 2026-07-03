@@ -73,6 +73,13 @@ import androidx.compose.ui.unit.sp
 import com.example.tconfirmo.R
 import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.*
+import com.example.tconfirmo.data.auth.AuthRepository
+import com.example.tconfirmo.data.auth.AuthResult
+import com.example.tconfirmo.data.deposits.DepositRepository
+import com.example.tconfirmo.data.realtime.RealtimeClient
+import com.example.tconfirmo.data.realtime.RealtimeEvent
+import com.example.tconfirmo.data.remote.ApiClient
+import com.example.tconfirmo.data.session.SessionManager
 import com.example.tconfirmo.ui.components.MessageBubble
 import com.example.tconfirmo.ui.components.PdfPreview
 import com.example.tconfirmo.ui.components.RegisterSheet
@@ -96,12 +103,16 @@ private const val KEY_PENDING_SHARED_VOUCHERS = "pending_shared_vouchers"
 @Composable
 fun MainScreen(
     initialSelectedTab: Int = 0,
+    realtimeClient: RealtimeClient? = null,
     sharedVoucherUris: List<Uri> = emptyList(),
     onSharedVouchersConsumed: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val registerScope = rememberCoroutineScope()
+    val sessionManager = remember { SessionManager(context) }
+    val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
     var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
     var showRegisterSheet by remember { mutableStateOf(false) }
     var registerSharedVoucherUriStrings by rememberSaveable {
@@ -112,6 +123,89 @@ fun MainScreen(
     var messages by remember { mutableStateOf(getInitialMessages()) }
     var reports by remember { mutableStateOf(getInitialReports()) }
     var reportsBackPressCount by remember { mutableStateOf(0) }
+
+    suspend fun refreshReportsFromApi() {
+        if (sessionManager.isTestMode()) return
+        val remoteReports = depositRepository.getReports()
+        if (remoteReports.isNotEmpty()) {
+            reports = remoteReports
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshReportsFromApi()
+    }
+
+    LaunchedEffect(realtimeClient) {
+        realtimeClient?.events?.collect { event ->
+            when (event) {
+                is RealtimeEvent.ChatMessageCreated -> {
+                    val realtimeMessage = event.message
+                    val content = realtimeMessage?.content.orEmpty()
+                    val messageId = realtimeMessage?.id ?: event.messageId ?: UUID.randomUUID().toString()
+                    if (content.isNotBlank() && messages.none { it.id == messageId }) {
+                        val createdAt = realtimeMessage?.createdAt ?: event.createdAt
+                        messages = messages + ChatMessage(
+                            id = messageId,
+                            from = realtimeMessage?.senderType.toMessageFrom(),
+                            text = content,
+                            date = createdAt.toChatDate(),
+                            time = createdAt.toChatTime(),
+                            status = MessageStatus.DELIVERED
+                        )
+                    }
+                }
+                is RealtimeEvent.DepositStatusChanged -> {
+                    val depositId = event.depositId ?: return@collect
+                    val status = (event.status ?: event.deposit?.estado).toReportStatus() ?: return@collect
+                    reports = reports.map { report ->
+                        if (report.id == depositId) {
+                            report.copy(
+                                status = status,
+                                mensajeValidacion = event.deposit?.motivoRechazo ?: report.mensajeValidacion,
+                                imageUrl = event.deposit?.imagenVoucher ?: report.imageUrl
+                            )
+                        } else {
+                            report
+                        }
+                    }
+                    refreshReportsFromApi()
+                }
+                is RealtimeEvent.DepositUpdated -> {
+                    val depositId = event.depositId ?: return@collect
+                    reports = reports.map { report ->
+                        if (report.id == depositId) {
+                            report.copy(
+                                status = event.deposit?.estado.toReportStatus() ?: report.status,
+                                mensajeValidacion = event.deposit?.motivoRechazo ?: report.mensajeValidacion,
+                                imageUrl = event.deposit?.imagenVoucher ?: report.imageUrl
+                            )
+                        } else {
+                            report
+                        }
+                    }
+                    refreshReportsFromApi()
+                }
+                is RealtimeEvent.DepositNotification -> {
+                    val depositId = event.depositId ?: return@collect
+                    val status = event.status.toReportStatus()
+                    reports = reports.map { report ->
+                        if (report.id == depositId) {
+                            report.copy(
+                                status = status ?: report.status,
+                                mensajeValidacion = event.message ?: report.mensajeValidacion
+                            )
+                        } else {
+                            report
+                        }
+                    }
+                    refreshReportsFromApi()
+                }
+                is RealtimeEvent.ConnectionChanged,
+                is RealtimeEvent.Raw -> Unit
+            }
+        }
+    }
 
     fun updatePendingSharedVouchers(values: List<String>) {
         registerSharedVoucherUriStrings = values
@@ -168,30 +262,6 @@ fun MainScreen(
     }
 
     Scaffold(
-        floatingActionButton = {
-            if (selectedTab == 0) {
-                FloatingActionButton(
-                    onClick = {
-                        updatePendingSharedVouchers(emptyList())
-                        registerInitialDrafts = emptyList()
-                        registerResetKey += 1
-                        showRegisterSheet = true
-                    },
-                    containerColor = PrimaryGreen,
-                    contentColor = Color.White,
-                    elevation = FloatingActionButtonDefaults.elevation(
-                        defaultElevation = 10.dp,
-                        pressedElevation = 14.dp,
-                        focusedElevation = 12.dp,
-                        hoveredElevation = 12.dp
-                    ),
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier.size(46.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "Nuevo deposito", modifier = Modifier.size(22.dp))
-                }
-            }
-        },
         bottomBar = {
             if (selectedTab != 1) {
                 Surface(
@@ -353,6 +423,12 @@ fun MainScreen(
                 when (tab) {
                     0 -> ReportsTab(
                         reports = reports,
+                        onOpenRegister = {
+                            updatePendingSharedVouchers(emptyList())
+                            registerInitialDrafts = emptyList()
+                            registerResetKey += 1
+                            showRegisterSheet = true
+                        },
                         onRegularize = { report ->
                             updatePendingSharedVouchers(emptyList())
                             registerInitialDrafts = listOf(
@@ -378,6 +454,7 @@ fun MainScreen(
                                 id = UUID.randomUUID().toString(),
                                 from = MessageFrom.USER,
                                 text = text,
+                                date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()),
                                 time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
                                 status = MessageStatus.SENT
                             )
@@ -409,9 +486,26 @@ fun MainScreen(
                 registerInitialDrafts = registerInitialDrafts.drop(consumed)
             },
             onSubmit = { solicitudes ->
+                registerScope.launch {
+                    val submitted = solicitudes.mapNotNull { solicitud ->
+                        val depositId = depositRepository.createDeposit(solicitud)
+                        if (depositId == null) null else solicitud to depositId
+                    }
+
+                    if (submitted.isEmpty()) {
+                        Toast.makeText(context, "No se pudo registrar el deposito en la API.", Toast.LENGTH_LONG).show()
+                        showRegisterSheet = false
+                        registerResetKey += 1
+                        return@launch
+                    }
+
+                    if (submitted.size < solicitudes.size) {
+                        Toast.makeText(context, "Algunos depositos no se pudieron registrar.", Toast.LENGTH_LONG).show()
+                    }
+
                     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                     val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-                    val newMessages = solicitudes.mapIndexed { index, solicitud ->
+                    val newMessages = submitted.mapIndexed { index, (solicitud, _) ->
                         val sid = "#${(reports.size + index + 1).toString().padStart(3, '0')}"
                         val voucherName = voucherFileName(sid, solicitud.imageUri)
                         val card = VoucherCard(
@@ -427,15 +521,18 @@ fun MainScreen(
                             id = UUID.randomUUID().toString(),
                             from = MessageFrom.USER,
                             voucherCard = card,
+                            date = date,
                             time = time,
                             status = MessageStatus.SENT
                         )
                     }
-                    val newReports = solicitudes.mapIndexed { index, solicitud ->
+                    val newReports = submitted.mapIndexed { index, pair ->
+                        val solicitud = pair.first
+                        val depositId = pair.second
                         val sid = "#${(reports.size + index + 1).toString().padStart(3, '0')}"
                         val voucherName = voucherFileName(sid, solicitud.imageUri)
                         Report(
-                            id = UUID.randomUUID().toString(),
+                            id = depositId,
                             solicitudNum = sid,
                             empresa = solicitud.empresa,
                             cliente = solicitud.cliente,
@@ -455,6 +552,7 @@ fun MainScreen(
                     registerInitialDrafts = emptyList()
                     registerResetKey += 1
                     selectedTab = 0
+                }
             }
         )
     }
@@ -474,6 +572,22 @@ fun ChatTab(
     var currentMatch by remember { mutableStateOf(0) }
     var openedVoucher by remember { mutableStateOf<VoucherCard?>(null) }
     var inputFocused by remember { mutableStateOf(false) }
+    var showOlderMessages by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val todayDate = remember { todayChatDate() }
+    val visibleMessages = remember(messages, showOlderMessages, todayDate) {
+        val filteredMessages = if (showOlderMessages) {
+            messages
+        } else {
+            messages.filter { it.isTodayMessage(todayDate) }
+        }
+        filteredMessages.sortedWith(compareBy<ChatMessage> { it.chatSortDate(todayDate) }.thenBy { it.time })
+    }
+    val hiddenOlderCount = remember(messages, todayDate) {
+        messages.count { !it.isTodayMessage(todayDate) }
+    }
+    val hasOlderMessagesToLoad = !showOlderMessages && hiddenOlderCount > 0
+    val listIndexOffset = 1
     val inputBlinkTransition = rememberInfiniteTransition(label = "ChatInputBlink")
     val focusedBorderAlpha by inputBlinkTransition.animateFloat(
         initialValue = 0.35f,
@@ -494,12 +608,12 @@ fun ChatTab(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
-    val matches = remember(messages, searchText) {
+    val matches = remember(visibleMessages, searchText) {
         if (searchText.isBlank()) {
             emptyList()
         } else {
-            messages.indices
-                .filter { index -> messages[index].searchableText().contains(searchText, ignoreCase = true) }
+            visibleMessages.indices
+                .filter { index -> visibleMessages[index].searchableText().contains(searchText, ignoreCase = true) }
                 .asReversed()
         }
     }
@@ -507,12 +621,16 @@ fun ChatTab(
 
     LaunchedEffect(matches) {
         currentMatch = 0
-        matches.firstOrNull()?.let { listState.animateScrollToItem(it) }
+        matches.firstOrNull()?.let {
+            listState.animateScrollToItem(chatListIndexForMessage(it, visibleMessages, todayDate, listIndexOffset))
+        }
     }
 
     LaunchedEffect(messages.size, searchOpen) {
-        if (!searchOpen && messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.lastIndex)
+        if (!searchOpen && visibleMessages.isNotEmpty()) {
+            listState.animateScrollToItem(
+                chatListIndexForMessage(visibleMessages.lastIndex, visibleMessages, todayDate, listIndexOffset)
+            )
         }
     }
 
@@ -575,14 +693,22 @@ fun ChatTab(
                     if (matches.isNotEmpty()) {
                         val nextMatch = (currentMatch + 1).coerceAtMost(matches.lastIndex)
                         currentMatch = nextMatch
-                        scope.launch { listState.animateScrollToItem(matches[nextMatch]) }
+                        scope.launch {
+                            listState.animateScrollToItem(
+                                chatListIndexForMessage(matches[nextMatch], visibleMessages, todayDate, listIndexOffset)
+                            )
+                        }
                     }
                 },
                 onNext = {
                     if (matches.isNotEmpty()) {
                         val nextMatch = (currentMatch - 1).coerceAtLeast(0)
                         currentMatch = nextMatch
-                        scope.launch { listState.animateScrollToItem(matches[nextMatch]) }
+                        scope.launch {
+                            listState.animateScrollToItem(
+                                chatListIndexForMessage(matches[nextMatch], visibleMessages, todayDate, listIndexOffset)
+                            )
+                        }
                     }
                 },
                 onClose = {
@@ -616,51 +742,36 @@ fun ChatTab(
                     contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
                     reverseLayout = false
                 ) {
-                    items(
-                        items = messages,
-                        key = { it.id }
-                    ) { msg ->
-                        val index = messages.indexOf(msg)
-                        MessageBubble(
-                            message = msg,
-                            isSearchMatch = index == activeMatchIndex,
-                            onVoucherClick = { openedVoucher = it }
+                    item(key = "show_older_messages") {
+                        ShowOlderMessagesButton(
+                            count = hiddenOlderCount,
+                            onClick = {
+                                if (hasOlderMessagesToLoad) {
+                                    showOlderMessages = true
+                                    scope.launch { listState.animateScrollToItem(0) }
+                                } else {
+                                    Toast.makeText(context, "No hay mas mensajes anteriores.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
                         )
                     }
-                }
+                    visibleMessages.forEachIndexed { index, msg ->
+                        val previousMessage = visibleMessages.getOrNull(index - 1)
+                        val currentDate = msg.normalizedChatDate(todayDate)
+                        val previousDate = previousMessage?.normalizedChatDate(todayDate)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = 10.dp)
-                        .padding(horizontal = 12.dp, vertical = 0.dp),
-                    contentAlignment = Alignment.CenterEnd
-                ) {
-                    Surface(
-                        modifier = Modifier.size(54.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color.Transparent,
-                        border = BorderStroke(2.dp, Color(0xFF0A84FF).copy(alpha = focusedBorderAlpha))
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            FloatingActionButton(
-                                onClick = onOpenRegister,
-                                containerColor = PrimaryGreen,
-                                contentColor = Color.White,
-                                elevation = FloatingActionButtonDefaults.elevation(
-                                    defaultElevation = 10.dp,
-                                    pressedElevation = 14.dp,
-                                    focusedElevation = 12.dp,
-                                    hoveredElevation = 12.dp
-                                ),
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.size(46.dp)
-                            ) {
-                                Icon(Icons.Default.Add, contentDescription = "Nuevo deposito", modifier = Modifier.size(22.dp))
+                        if (currentDate != previousDate) {
+                            item(key = "day_separator_$currentDate") {
+                                ChatDaySeparator(label = chatDayLabel(currentDate, todayDate))
                             }
+                        }
+
+                        item(key = msg.id) {
+                            MessageBubble(
+                                message = msg,
+                                isSearchMatch = index == activeMatchIndex,
+                                onVoucherClick = { openedVoucher = it }
+                            )
                         }
                     }
                 }
@@ -757,18 +868,30 @@ fun ChatTab(
                             )
                             IconButton(
                                 onClick = {
-                                    if (textInput.isBlank()) return@IconButton
-                                    onSendMessage(textInput)
-                                    textInput = ""
+                                    if (textInput.isBlank()) {
+                                        onOpenRegister()
+                                    } else {
+                                        onSendMessage(textInput)
+                                        textInput = ""
+                                    }
                                 },
                                 modifier = Modifier.size(34.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.Send,
-                                    contentDescription = "Enviar",
-                                    tint = if (textInput.isBlank()) Color.Gray else Color.Black,
-                                    modifier = Modifier.size(22.dp)
-                                )
+                                val hasMessage = textInput.isNotBlank()
+                                Surface(
+                                    modifier = Modifier.size(30.dp),
+                                    shape = CircleShape,
+                                    color = if (hasMessage) PrimaryGreen else Color(0xFFFFE500)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (hasMessage) Icons.AutoMirrored.Filled.Send else Icons.Default.Add,
+                                            contentDescription = if (hasMessage) "Enviar" else "Registrar voucher",
+                                            tint = if (hasMessage) Color.White else PrimaryDarkGreen,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -780,6 +903,70 @@ fun ChatTab(
             VoucherImageDialog(
                 voucher = voucher,
                 onDismiss = { openedVoucher = null }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShowOlderMessagesButton(
+    count: Int,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.clickable(onClick = onClick),
+            shape = RoundedCornerShape(18.dp),
+            color = Color.White.copy(alpha = 0.94f),
+            shadowElevation = 4.dp,
+            border = BorderStroke(1.dp, Color(0xFFE7EAF4))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Default.KeyboardArrowUp,
+                    contentDescription = null,
+                    tint = PrimaryGreen,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (count == 1) "Ver mensaje anterior" else "Ver mensajes anteriores",
+                    color = Color(0xFF17265F),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatDaySeparator(label: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = Color(0xFFE7EAF4).copy(alpha = 0.92f),
+            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.65f))
+        ) {
+            Text(
+                text = label,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                color = Color(0xFF344171),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }
@@ -892,6 +1079,7 @@ private fun VoucherImageDialog(
 @Composable
 fun ReportsTab(
     reports: List<Report>,
+    onOpenRegister: () -> Unit,
     onRegularize: (Report) -> Unit
 ) {
     var filter by remember { mutableStateOf("all") }
@@ -906,7 +1094,7 @@ fun ReportsTab(
         "rejected" -> reports.filter { it.status == ReportStatus.REJECTED }
         else -> reports
     }
-    val reportsPageSize = 4
+    val reportsPageSize = 6
     val totalPages = ((filteredReports.size + reportsPageSize - 1) / reportsPageSize).coerceAtLeast(1)
     val pagedReports = filteredReports
         .drop(currentPage * reportsPageSize)
@@ -1003,7 +1191,7 @@ fun ReportsTab(
 
         // Filters
         LazyRow(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
             contentPadding = PaddingValues(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -1017,8 +1205,8 @@ fun ReportsTab(
         LazyColumn(
             state = reportsListState,
             modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(
                 items = pagedReports,
@@ -1038,7 +1226,8 @@ fun ReportsTab(
             totalPages = totalPages,
             onPageSelected = { page -> currentPage = page },
             onPrevious = { currentPage = (currentPage - 1).coerceAtLeast(0) },
-            onNext = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) }
+            onNext = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) },
+            onOpenRegister = onOpenRegister
         )
 
         selectedReport?.let { report ->
@@ -1064,49 +1253,72 @@ private fun ReportsPaginationBar(
     totalPages: Int,
     onPageSelected: (Int) -> Unit,
     onPrevious: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onOpenRegister: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White,
         shadowElevation = 4.dp
     ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
-            contentAlignment = Alignment.Center
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState())
             ) {
-                PaginationPillButton(
-                    text = "Ant.",
-                    icon = Icons.Default.ChevronLeft,
-                    onClick = onPrevious,
-                    enabled = currentPage > 0,
-                    iconFirst = true,
-                    contentDescription = "Pagina anterior"
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PaginationPillButton(
+                        text = "Ant.",
+                        icon = Icons.Default.ChevronLeft,
+                        onClick = onPrevious,
+                        enabled = currentPage > 0,
+                        iconFirst = true,
+                        contentDescription = "Pagina anterior"
+                    )
 
-                repeat(totalPages) { page ->
-                    PaginationPageButton(
-                        page = page,
-                        selected = page == currentPage,
-                        onClick = { onPageSelected(page) }
+                    repeat(totalPages) { page ->
+                        PaginationPageButton(
+                            page = page,
+                            selected = page == currentPage,
+                            onClick = { onPageSelected(page) }
+                        )
+                    }
+
+                    PaginationPillButton(
+                        text = "Sig.",
+                        icon = Icons.Default.ChevronRight,
+                        onClick = onNext,
+                        enabled = currentPage < totalPages - 1,
+                        iconFirst = false,
+                        contentDescription = "Pagina siguiente"
                     )
                 }
-
-                PaginationPillButton(
-                    text = "Sig.",
-                    icon = Icons.Default.ChevronRight,
-                    onClick = onNext,
-                    enabled = currentPage < totalPages - 1,
-                    iconFirst = false,
-                    contentDescription = "Pagina siguiente"
-                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            FloatingActionButton(
+                onClick = onOpenRegister,
+                containerColor = PrimaryGreen,
+                contentColor = Color.White,
+                elevation = FloatingActionButtonDefaults.elevation(
+                    defaultElevation = 8.dp,
+                    pressedElevation = 12.dp,
+                    focusedElevation = 10.dp,
+                    hoveredElevation = 10.dp
+                ),
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.size(44.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Nuevo deposito", modifier = Modifier.size(22.dp))
             }
         }
     }
@@ -1178,33 +1390,6 @@ private fun PaginationPageButton(
 
 @Composable
 private fun NoticesTab() {
-    val notices = listOf(
-        NoticeExample(
-            Icons.Default.Campaign,
-            "VARIACION TIPO DE CAMBIO - REPORTE DE VENTAS 24/06/2026",
-            """
-            Senores Buenos dias
-
-            Se actualiza,
-
-            A partir de este momento
-
-            tipo de cambio considerar en su Reporte de Ventas a partir de este momento 24/06/2026.
-
-            Por favor, informar a sus companeros.
-
-            VENTA       =       3.43
-            COMPRA   =       3.38
-            """.trimIndent()
-        ),
-        NoticeExample(Icons.Default.Warning, "Voucher observado", "Hay comprobantes pendientes de regularizacion en reportes."),
-        NoticeExample(Icons.Default.NotificationsActive, "Nueva actualizacion", "Revisa el boton de actualizar version en ajustes."),
-        NoticeExample(Icons.Default.Security, "Seguridad", "No compartas tus credenciales con otros usuarios."),
-        NoticeExample(Icons.Default.Schedule, "Horario bancario", "Los depositos fuera de horario pueden demorar en confirmarse.")
-    )
-    var selectedNotice by remember { mutableStateOf<NoticeExample?>(null) }
-    var readNoticeTitles by rememberSaveable { mutableStateOf(setOf<String>()) }
-
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Box(
             modifier = Modifier
@@ -1224,29 +1409,46 @@ private fun NoticesTab() {
             }
         }
 
-        Column(
+        Box(
             modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+                .fillMaxSize()
+                .padding(28.dp),
+            contentAlignment = Alignment.Center
         ) {
-            notices.forEach { notice ->
-                NoticeExampleItem(
-                    notice = notice,
-                    isRead = readNoticeTitles.contains(notice.title),
-                    onClick = {
-                        readNoticeTitles = readNoticeTitles + notice.title
-                        selectedNotice = notice
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Surface(
+                    modifier = Modifier.size(86.dp),
+                    shape = CircleShape,
+                    color = Color(0xFFFFF6B8),
+                    border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.75f))
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Construction,
+                            contentDescription = null,
+                            tint = PrimaryGreen,
+                            modifier = Modifier.size(42.dp)
+                        )
                     }
+                }
+                Text(
+                    text = "Panel de avisos en construccion",
+                    color = Color(0xFF17265F),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = PlusJakartaSansFamily
+                )
+                Text(
+                    text = "Los comunicados apareceran aqui cuando el modulo este disponible.",
+                    color = Color(0xFF6A7394),
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
-        }
-
-        selectedNotice?.let { notice ->
-            NoticeExampleDialog(
-                notice = notice,
-                onDismiss = { selectedNotice = null }
-            )
         }
     }
 }
@@ -1440,7 +1642,7 @@ fun ReportItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = cardBg),
         border = BorderStroke(1.dp, cardBorder),
         elevation = CardDefaults.cardElevation(defaultElevation = if (highlighted) 10.dp else 3.dp)
@@ -1452,7 +1654,7 @@ fun ReportItem(
                     .fillMaxHeight()
                     .background(statusAccent)
             )
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1462,7 +1664,7 @@ fun ReportItem(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(text = report.solicitudNum, fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 12.sp)
+                    Text(text = report.solicitudNum, fontWeight = FontWeight.Bold, color = PrimaryGreen, fontSize = 11.sp)
                     if (report.status == ReportStatus.REJECTED) {
                         Surface(
                             color = PrimaryGreen,
@@ -1470,12 +1672,12 @@ fun ReportItem(
                             modifier = Modifier.clickable(onClick = onRegularize)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(Icons.Default.EditNote, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Regularizar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                Text("Regularizar", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                             }
                         }
                     }
@@ -1494,15 +1696,15 @@ fun ReportItem(
                             color = statusColor,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp)
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Surface(
-                    modifier = Modifier.size(46.dp),
+                    modifier = Modifier.size(38.dp),
                     shape = CircleShape,
                     color = Color(0xFFF8FAFF),
                     border = BorderStroke(2.dp, PrimaryGreen.copy(alpha = 0.35f)),
@@ -1513,12 +1715,12 @@ fun ReportItem(
                         contentDescription = report.empresa,
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(5.dp)
+                            .padding(4.dp)
                             .clip(CircleShape),
                         contentScale = ContentScale.Fit
                     )
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Column(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
@@ -1527,7 +1729,7 @@ fun ReportItem(
                         Text(
                             text = report.cliente.ifBlank { "Sin nombre" },
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             color = Color(0xFF17265F),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -1550,7 +1752,7 @@ fun ReportItem(
                         Text(
                             text = report.banco,
                             color = Color(0xFF344171),
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -1918,6 +2120,14 @@ fun SettingsTab(
     onCheckForUpdates: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val sessionManager = remember { SessionManager(context) }
+    val authRepository = remember {
+        AuthRepository(
+            authApi = ApiClient.authApi,
+            sessionManager = sessionManager
+        )
+    }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
 
@@ -1956,20 +2166,19 @@ fun SettingsTab(
                 border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
-                Column(modifier = Modifier.padding(20.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(modifier = Modifier.size(56.dp), shape = RoundedCornerShape(16.dp), color = PrimaryGreen) {
+                        Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = PrimaryGreen) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("JP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                Text("JP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                             }
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text("Juan Perez Garcia", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PrimaryDarkGreen)
-                            Text("Personal de Caja", color = Color(0xFF344171), fontSize = 12.sp)
+                            Text("Juan Perez Garcia", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PrimaryDarkGreen)
                         }
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     SettingsRow(Icons.Default.Store, "Tienda", "PIURA AV. SANCHEZ CERRO 1222")
                     SettingsRow(Icons.Default.Phone, "Celular", "987654321")
                 }
@@ -1991,7 +2200,13 @@ fun SettingsTab(
                         Icons.Default.Key,
                         "Cambiar contrasena",
                         "Actualiza tu acceso",
-                        onClick = { showPasswordDialog = true }
+                        onClick = {
+                            if (sessionManager.isTestMode()) {
+                                Toast.makeText(context, "No disponible en modo prueba.", Toast.LENGTH_SHORT).show()
+                            } else {
+                                showPasswordDialog = true
+                            }
+                        }
                     )
                     SettingsActionRow(
                         Icons.Default.ExitToApp,
@@ -2031,7 +2246,11 @@ fun SettingsTab(
     if (showPasswordDialog) {
         ChangePasswordDialog(
             onDismiss = { showPasswordDialog = false },
+            onChangePassword = { currentPassword, newPassword ->
+                authRepository.changePassword(currentPassword, newPassword)
+            },
             onPasswordChanged = {
+                Toast.makeText(context, "Contrasena actualizada. Inicia sesion nuevamente.", Toast.LENGTH_LONG).show()
                 showPasswordDialog = false
                 onLogout()
             }
@@ -2097,21 +2316,24 @@ fun SettingsActionRow(
 @Composable
 private fun ChangePasswordDialog(
     onDismiss: () -> Unit,
+    onChangePassword: suspend (String, String) -> AuthResult,
     onPasswordChanged: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     var currentPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var currentVisible by remember { mutableStateOf(false) }
     var newVisible by remember { mutableStateOf(false) }
     var confirmVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    val canSave = currentPassword.isNotBlank() && newPassword.length >= 6 && newPassword == confirmPassword
+    val canSave = !isLoading && currentPassword.isNotBlank() && newPassword.length >= 8 && newPassword == confirmPassword
 
     AlertDialog(
         modifier = Modifier.imePadding(),
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isLoading) onDismiss() },
         containerColor = Color(0xFFF8FAFF),
         shape = RoundedCornerShape(24.dp),
         title = {
@@ -2169,21 +2391,38 @@ private fun ChangePasswordDialog(
                 onClick = {
                     errorMessage = when {
                         currentPassword.isBlank() -> "Ingresa tu contrasena actual."
-                        newPassword.length < 6 -> "La nueva contrasena debe tener al menos 6 caracteres."
+                        newPassword.length < 8 -> "La nueva contrasena debe tener al menos 8 caracteres."
                         newPassword != confirmPassword -> "Las contrasenas nuevas no coinciden."
                         else -> null
                     }
-                    if (errorMessage == null) onPasswordChanged()
+                    if (errorMessage == null) {
+                        isLoading = true
+                        scope.launch {
+                            when (val result = onChangePassword(currentPassword, newPassword)) {
+                                AuthResult.Success -> onPasswordChanged()
+                                is AuthResult.Error -> errorMessage = result.message
+                            }
+                            isLoading = false
+                        }
+                    }
                 },
                 enabled = canSave,
                 shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
             ) {
-                Text("Guardar", fontWeight = FontWeight.Bold)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Guardar", fontWeight = FontWeight.Bold)
+                }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = onDismiss, enabled = !isLoading) {
                 Text("Cancelar", color = PrimaryGreen)
             }
         }
@@ -2285,10 +2524,12 @@ private fun PasswordField(
 }
 
 fun getInitialMessages(): List<ChatMessage> {
+    val today = todayChatDate()
     return listOf(
         ChatMessage(
             id = "m1", from = MessageFrom.BOT,
             text = "?? Hola Juan. Estoy listo para recibir tus depositos. Usa el boton de camara ?? para registrar un voucher.",
+            date = today,
             time = "08:00"
         ),
         ChatMessage(
@@ -2298,6 +2539,7 @@ fun getInitialMessages(): List<ChatMessage> {
                 imageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=280&h=180&fit=crop&auto=format",
                 empresa = "JCH COMERCIAL SA", banco = "BCP", cliente = "Carlos Mendoza", status = ReportStatus.VALIDATED
             ),
+            date = "17/06/2026",
             time = "14:22",
             status = MessageStatus.READ
         ),
@@ -2317,6 +2559,7 @@ fun getInitialMessages(): List<ChatMessage> {
                 ),
                 footer = "? Validado y registrado exitosamente."
             ),
+            date = "17/06/2026",
             time = "14:23"
         ),
         ChatMessage(
@@ -2326,12 +2569,14 @@ fun getInitialMessages(): List<ChatMessage> {
                 imageUrl = "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=280&h=180&fit=crop&auto=format",
                 empresa = "EVOLUTION CAR SERVICE", banco = "INTERBANK", cliente = "Diana Flores", status = ReportStatus.PENDING
             ),
+            date = "17/06/2026",
             time = "15:10",
             status = MessageStatus.READ
         ),
         ChatMessage(
             id = "m5", from = MessageFrom.BOT,
             text = "? Solicitud #002 recibida. En proceso de validacion.",
+            date = "17/06/2026",
             time = "15:11"
         )
     )
@@ -2391,6 +2636,42 @@ private fun ChatMessage.searchableText(): String {
             }
         }
     }
+}
+
+private fun todayChatDate(): String {
+    return SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+}
+
+private fun ChatMessage.isTodayMessage(todayDate: String): Boolean {
+    return date.isBlank() || date == todayDate
+}
+
+private fun ChatMessage.normalizedChatDate(todayDate: String): String {
+    return date.ifBlank { todayDate }
+}
+
+private fun ChatMessage.chatSortDate(todayDate: String): String {
+    val parts = normalizedChatDate(todayDate).split("/")
+    if (parts.size != 3) return normalizedChatDate(todayDate)
+    return "${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}"
+}
+
+private fun chatDayLabel(date: String, todayDate: String): String {
+    return if (date == todayDate) "Hoy" else date
+}
+
+private fun chatListIndexForMessage(
+    messageIndex: Int,
+    visibleMessages: List<ChatMessage>,
+    todayDate: String,
+    leadingItems: Int
+): Int {
+    val separatorCount = visibleMessages
+        .take(messageIndex + 1)
+        .map { it.normalizedChatDate(todayDate) }
+        .distinct()
+        .size
+    return leadingItems + separatorCount + messageIndex
 }
 
 private fun voucherFileName(solicitudId: String, imageUri: String): String {
@@ -2464,6 +2745,51 @@ private fun ReportStatus.spanishLabel(): String {
         ReportStatus.PENDING -> "Pendiente"
         ReportStatus.REJECTED -> "Rechazado"
     }
+}
+
+private fun String?.toMessageFrom(): MessageFrom {
+    return when (this?.trim()?.lowercase(Locale.ROOT)) {
+        "user", "mobile", "cliente", "client" -> MessageFrom.USER
+        else -> MessageFrom.BOT
+    }
+}
+
+private fun String?.toReportStatus(): ReportStatus? {
+    return when (this?.trim()?.uppercase(Locale.ROOT)) {
+        "PENDING", "PENDIENTE" -> ReportStatus.PENDING
+        "RECEIVED", "RECIBIDO", "PROCESSING", "PROCESANDO", "EN_PROCESO", "OBSERVADO" -> ReportStatus.PENDING
+        "VALIDATED", "VALIDADO", "CONFIRMED", "CONFIRMADO", "CONFIRMADO_EXITOSO" -> ReportStatus.VALIDATED
+        "REJECTED", "RECHAZADO", "QUALITY_REJECTED", "ERROR_VALIDACION" -> ReportStatus.REJECTED
+        else -> null
+    }
+}
+
+private fun String?.toChatDate(): String {
+    return toFormattedBackendDate("dd/MM/yyyy") ?: todayChatDate()
+}
+
+private fun String?.toChatTime(): String {
+    return toFormattedBackendDate("HH:mm")
+        ?: SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+}
+
+private fun String?.toFormattedBackendDate(outputPattern: String): String? {
+    if (isNullOrBlank()) return null
+    val rawValue = this
+    val inputPatterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSS",
+        "yyyy-MM-dd'T'HH:mm:ss"
+    )
+    val parsedDate = inputPatterns.firstNotNullOfOrNull { pattern ->
+        runCatching {
+            SimpleDateFormat(pattern, Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }.parse(rawValue)
+        }.getOrNull()
+    } ?: return null
+    return SimpleDateFormat(outputPattern, Locale.getDefault()).format(parsedDate)
 }
 
 @Preview(showBackground = true)

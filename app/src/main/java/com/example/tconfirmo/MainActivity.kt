@@ -16,6 +16,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.tconfirmo.data.fcm.FcmTokenProvider
+import com.example.tconfirmo.data.offline.FirebaseOfflineClient
+import com.example.tconfirmo.data.realtime.RealtimeClient
+import com.example.tconfirmo.data.remote.ApiClient
+import com.example.tconfirmo.data.session.SessionManager
 import com.example.tconfirmo.ui.screens.LoginScreen
 import com.example.tconfirmo.ui.screens.MainScreen
 import com.example.tconfirmo.ui.theme.TConfirmoTheme
@@ -25,34 +30,44 @@ import com.example.tconfirmo.updates.UpdateUi
 import com.example.tconfirmo.updates.UpdateUiState
 import kotlinx.coroutines.launch
 
-private const val SESSION_PREFS = "tconfirmo_session"
-private const val KEY_LOGGED_IN = "logged_in"
-
 class MainActivity : ComponentActivity() {
     private var sharedVoucherUris by mutableStateOf<List<Uri>>(emptyList())
     private var isLoggedIn by mutableStateOf(false)
     private var updateState by mutableStateOf<UpdateUiState>(UpdateUiState.Idle)
     private lateinit var appUpdateManager: AppUpdateManager
+    private lateinit var sessionManager: SessionManager
+    private lateinit var realtimeClient: RealtimeClient
+    private lateinit var fcmTokenProvider: FcmTokenProvider
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        FirebaseOfflineClient.initialize(applicationContext)
         appUpdateManager = AppUpdateManager(applicationContext)
-        isLoggedIn = getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LOGGED_IN, false)
+        sessionManager = SessionManager(applicationContext)
+        ApiClient.initialize(sessionManager)
+        realtimeClient = RealtimeClient(sessionManager)
+        fcmTokenProvider = FcmTokenProvider(applicationContext)
+        isLoggedIn = sessionManager.isLoggedIn()
+        if (isLoggedIn) {
+            lifecycleScope.launch { connectRealtimeAndRegisterFcm() }
+        }
         sharedVoucherUris = intent.extractSharedVoucherUris()
         setContent {
             TConfirmoTheme {
                 AppNavigation(
                     isLoggedIn = isLoggedIn,
+                    realtimeClient = realtimeClient,
                     sharedVoucherUris = sharedVoucherUris,
                     onSharedVouchersConsumed = { sharedVoucherUris = emptyList() },
                     onLoginSuccess = {
                         isLoggedIn = true
-                        setSessionLoggedIn(true)
+                        lifecycleScope.launch { connectRealtimeAndRegisterFcm() }
                     },
                     onLogout = {
                         isLoggedIn = false
-                        setSessionLoggedIn(false)
+                        sessionManager.clearSession()
+                        lifecycleScope.launch { realtimeClient.disconnect() }
                     },
                     onCheckForUpdates = { checkForUpdates(showNoUpdate = true) }
                 )
@@ -72,11 +87,9 @@ class MainActivity : ComponentActivity() {
         sharedVoucherUris = sharedVoucherUris + intent.extractSharedVoucherUris()
     }
 
-    private fun setSessionLoggedIn(value: Boolean) {
-        getSharedPreferences(SESSION_PREFS, Context.MODE_PRIVATE)
-            .edit()
-            .putBoolean(KEY_LOGGED_IN, value)
-            .apply()
+    override fun onDestroy() {
+        lifecycleScope.launch { realtimeClient.disconnect() }
+        super.onDestroy()
     }
 
     private fun checkForUpdates(showNoUpdate: Boolean) {
@@ -97,6 +110,15 @@ class MainActivity : ComponentActivity() {
                         UpdateUiState.Idle
                     }
                 }
+        }
+    }
+
+    private suspend fun connectRealtimeAndRegisterFcm() {
+        realtimeClient.connect()
+        if (sessionManager.isTestMode()) return
+        val token = fcmTokenProvider.getCurrentToken()
+        if (!token.isNullOrBlank()) {
+            realtimeClient.registerFcmToken(token)
         }
     }
 
@@ -129,6 +151,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppNavigation(
     isLoggedIn: Boolean = false,
+    realtimeClient: RealtimeClient? = null,
     sharedVoucherUris: List<Uri> = emptyList(),
     onSharedVouchersConsumed: () -> Unit = {},
     onLoginSuccess: () -> Unit = {},
@@ -149,6 +172,7 @@ fun AppNavigation(
         }
         composable("main") {
                 MainScreen(
+                    realtimeClient = realtimeClient,
                     sharedVoucherUris = sharedVoucherUris,
                     onSharedVouchersConsumed = onSharedVouchersConsumed,
                     onCheckForUpdates = onCheckForUpdates,

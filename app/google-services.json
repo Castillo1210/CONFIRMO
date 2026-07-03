@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "732247796088",
+    "project_id": "confirmo-efbe9",
+    "storage_bucket": "confirmo-efbe9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:732247796088:android:8042e00323ac41ba4c808d",
+        "android_client_info": {
+          "package_name": "com.example.tconfirmo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDq9F1F_KbFNZW_vPWiLoOnyhEYgm3kFiM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

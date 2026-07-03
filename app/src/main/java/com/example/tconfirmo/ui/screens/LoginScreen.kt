@@ -31,9 +31,11 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -51,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,6 +62,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.tconfirmo.data.auth.AuthRepository
+import com.example.tconfirmo.data.auth.AuthResult
+import com.example.tconfirmo.data.auth.AuthRepository.Companion.MOCK_PASSWORD
+import com.example.tconfirmo.data.auth.AuthRepository.Companion.MOCK_PHONE
+import com.example.tconfirmo.data.remote.ApiClient
+import com.example.tconfirmo.data.session.SessionManager
 import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
 import com.example.tconfirmo.ui.theme.TConfirmoTheme
 import kotlinx.coroutines.delay
@@ -66,9 +75,20 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
+    val context = LocalContext.current
+    val authRepository = remember {
+        AuthRepository(
+            authApi = ApiClient.authApi,
+            sessionManager = SessionManager(context)
+        )
+    }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var phone by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var useTestMode by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val gradientBrush = Brush.verticalGradient(
         colors = listOf(
@@ -105,7 +125,34 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             onPasswordChange = { password = it },
             passwordVisible = passwordVisible,
             onPasswordToggle = { passwordVisible = !passwordVisible },
-            onLoginSuccess = onLoginSuccess,
+            isLoading = isLoading,
+            errorMessage = errorMessage,
+            useTestMode = useTestMode,
+            onTestModeChange = { enabled ->
+                useTestMode = enabled
+                errorMessage = null
+                if (enabled) {
+                    phone = MOCK_PHONE
+                    password = MOCK_PASSWORD
+                }
+            },
+            onLoginClick = {
+                errorMessage = null
+                when {
+                    phone.isBlank() -> errorMessage = "Ingresa tu numero de telefono."
+                    password.isBlank() -> errorMessage = "Ingresa tu contrasena."
+                    else -> {
+                        isLoading = true
+                        scope.launch {
+                            when (val result = authRepository.login(phone, password, useTestMode = useTestMode)) {
+                                AuthResult.Success -> onLoginSuccess()
+                                is AuthResult.Error -> errorMessage = result.message
+                            }
+                            isLoading = false
+                        }
+                    }
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
@@ -273,7 +320,11 @@ private fun LoginFormSection(
     onPasswordChange: (String) -> Unit,
     passwordVisible: Boolean,
     onPasswordToggle: () -> Unit,
-    onLoginSuccess: () -> Unit,
+    isLoading: Boolean,
+    errorMessage: String?,
+    useTestMode: Boolean,
+    onTestModeChange: (Boolean) -> Unit,
+    onLoginClick: () -> Unit,
     modifier: Modifier
 ) {
     Surface(
@@ -326,8 +377,60 @@ private fun LoginFormSection(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = if (useTestMode) Color(0xFFFFF6B8) else Color.White,
+                border = BorderStroke(
+                    1.dp,
+                    if (useTestMode) Color(0xFFFFE500) else Color(0xFFE1E5F2)
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Modo prueba",
+                            color = Color(0xFF17265F),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (useTestMode) {
+                                "Usando datos locales sin API real"
+                            } else {
+                                "Usando API bridge real"
+                            },
+                            color = Color(0xFF6A7394),
+                            fontSize = 11.sp
+                        )
+                    }
+                    Switch(
+                        checked = useTestMode,
+                        onCheckedChange = onTestModeChange,
+                        enabled = !isLoading
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            if (!errorMessage.isNullOrBlank()) {
+                Text(
+                    text = errorMessage,
+                    fontSize = 12.sp,
+                    color = Color(0xFFB42318),
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+            }
+
             Button(
-                onClick = onLoginSuccess,
+                onClick = onLoginClick,
+                enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -337,7 +440,15 @@ private fun LoginFormSection(
                     contentColor = Color(0xFF17265F)
                 )
             ) {
-                Text("Ingresar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color(0xFF17265F),
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text("Ingresar", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
             }
 
             Spacer(modifier = Modifier.height(32.dp))

@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -15,14 +16,29 @@ android {
         applicationId = "com.example.tconfirmo"
         minSdk = 24
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.6"
+        versionCode = 8
+        versionName = "1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
             "String",
             "UPDATE_METADATA_URL",
             "\"https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/version.json\""
+        )
+        buildConfigField(
+            "String",
+            "API_BASE_URL",
+            "\"http://34.44.185.224:8080/\""
+        )
+        buildConfigField(
+            "Boolean",
+            "USE_MOCK_LOGIN",
+            "false"
+        )
+        buildConfigField(
+            "String",
+            "SIGNALR_HUB_URL",
+            "\"http://34.44.185.224:8080/hubs/deposits\""
         )
     }
 
@@ -56,6 +72,13 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp.logging.interceptor)
+    implementation(libs.signalr)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.firestore)
+    implementation(libs.firebase.messaging)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
@@ -63,4 +86,5 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
+    implementation("com.google.firebase:firebase-analytics")
 }

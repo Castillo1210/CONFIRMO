@@ -18,7 +18,9 @@ data class DepositDraft(
     val empresa: String,
     val banco: String,
     val cliente: String,
-    val imageUri: String
+    val imageUri: String,
+    val empresaId: String? = null,
+    val bancoId: String? = null
 )
 
 data class ChatMessage(
@@ -28,6 +30,7 @@ data class ChatMessage(
     val imageUrl: String? = null,
     val voucherCard: VoucherCard? = null,
     val structuredData: StructuredBotData? = null, // Para mensajes de confirmación/rechazo
+    val date: String = "",
     val time: String,
     val status: MessageStatus? = null
 )

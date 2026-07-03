@@ -3,11 +3,9 @@ package com.example.tconfirmo.ui.components
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
 import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -70,7 +68,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -80,9 +77,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.tconfirmo.R
 import coil.compose.rememberAsyncImagePainter
 import com.example.tconfirmo.data.DepositDraft
+import com.example.tconfirmo.data.deposits.DepositRepository
+import com.example.tconfirmo.data.session.SessionManager
 import com.example.tconfirmo.ui.components.PdfPreview
 import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
 import com.example.tconfirmo.ui.theme.PrimaryGreen
@@ -101,11 +101,13 @@ private data class DepositCartItem(
     val image: VoucherImage,
     val empresa: String,
     val banco: String,
+    val empresaId: String?,
+    val bancoId: String?,
     val cliente: String
 )
 
 private sealed interface VoucherImage {
-    data class Camera(val bitmap: Bitmap, val uri: String) : VoucherImage
+    data class Camera(val uri: Uri) : VoucherImage
     data class Gallery(val uri: Uri) : VoucherImage
     data class Pdf(val uri: Uri) : VoucherImage
 }
@@ -126,7 +128,9 @@ fun RegisterSheet(
     var items by remember { mutableStateOf<List<DepositCartItem>>(emptyList()) }
     var draftImage by remember { mutableStateOf<VoucherImage?>(null) }
     var draftEmpresa by remember { mutableStateOf("") }
+    var draftEmpresaId by remember { mutableStateOf<String?>(null) }
     var draftBanco by remember { mutableStateOf("") }
+    var draftBancoId by remember { mutableStateOf<String?>(null) }
     var draftCliente by remember { mutableStateOf("") }
     var editingItemId by remember { mutableStateOf<String?>(null) }
     var pendingSubmit by remember { mutableStateOf<List<DepositDraft>>(emptyList()) }
@@ -135,15 +139,20 @@ fun RegisterSheet(
 
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sessionManager = remember { SessionManager(context) }
+    val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
     val empresas = listOf("JCH COMERCIAL SA", "EVOLUTION CAR SERVICE")
-    val bancos = listOf("BCP", "INTERBANK", "SCOTIABANK", "BBVA", "BANBIF", "PICHINCHA")
+    var bancos by remember { mutableStateOf(listOf("BCP", "INTERBANK", "SCOTIABANK", "BBVA", "BANBIF", "PICHINCHA")) }
+    var bancoIdsByName by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val canAddDraft = draftImage != null && draftEmpresa.isNotBlank() && draftBanco.isNotBlank()
     val canSubmit = items.isNotEmpty() && items.all { it.isComplete() }
 
     fun resetDraft() {
         draftImage = null
         draftEmpresa = ""
+        draftEmpresaId = null
         draftBanco = ""
+        draftBancoId = null
         draftCliente = ""
         editingItemId = null
     }
@@ -165,24 +174,37 @@ fun RegisterSheet(
     fun openEditDeposit(item: DepositCartItem) {
         draftImage = item.image
         draftEmpresa = item.empresa
+        draftEmpresaId = item.empresaId
         draftBanco = item.banco
+        draftBancoId = item.bancoId
         draftCliente = item.cliente
         editingItemId = item.id
         mode = RegisterMode.Form
     }
 
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-        if (bitmap != null) {
-            draftImage = VoucherImage.Camera(bitmap = bitmap, uri = saveBitmapToCache(context, bitmap))
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val capturedUri = pendingCameraUri
+        pendingCameraUri = null
+        if (success && capturedUri != null) {
+            draftImage = VoucherImage.Camera(uri = capturedUri)
         }
     }
+    fun launchCamera() {
+        val uri = createCameraVoucherUri(context)
+        pendingCameraUri = uri
+        cameraLauncher.launch(uri)
+    }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) cameraLauncher.launch(null)
+        if (granted) launchCamera()
     }
     fun addIncomingVoucherUris(
         uris: List<Uri>,
         empresa: String = "",
+        empresaId: String? = null,
         banco: String = "",
+        bancoId: String? = null,
         cliente: String = ""
     ) {
         if (uris.isEmpty()) return
@@ -191,6 +213,8 @@ fun RegisterSheet(
                 image = uri.toVoucherImage(context),
                 empresa = empresa,
                 banco = banco,
+                empresaId = empresaId,
+                bancoId = bancoId,
                 cliente = cliente
             )
         }
@@ -199,14 +223,16 @@ fun RegisterSheet(
         mode = RegisterMode.Cart
     }
 
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(20)) { uris ->
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         when (uris.size) {
             0 -> Unit
             1 -> draftImage = uris.first().toVoucherImage(context)
             else -> addIncomingVoucherUris(
                 uris = uris,
                 empresa = draftEmpresa,
+                empresaId = draftEmpresaId,
                 banco = draftBanco,
+                bancoId = draftBancoId,
                 cliente = draftCliente
             )
         }
@@ -214,14 +240,14 @@ fun RegisterSheet(
 
     fun openCamera() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-            cameraLauncher.launch(null)
+            launchCamera()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
     fun openGallery() {
-        galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        galleryLauncher.launch(arrayOf("image/*", "application/pdf"))
     }
 
     LaunchedEffect(Unit) {
@@ -230,6 +256,16 @@ fun RegisterSheet(
 
     LaunchedEffect(visible) {
         if (visible) sheetState.expand()
+    }
+
+    LaunchedEffect(visible) {
+        if (visible) {
+            val body = depositRepository.getBanks()
+            if (body.isNotEmpty()) {
+                bancos = body.map { it.nombre }
+                bancoIdsByName = body.associate { it.nombre to it.id }
+            }
+        }
     }
 
     LaunchedEffect(resetKey) {
@@ -253,6 +289,8 @@ fun RegisterSheet(
                     image = draft.imageUri.toVoucherImage(),
                     empresa = draft.empresa,
                     banco = draft.banco,
+                    empresaId = draft.empresaId,
+                    bancoId = draft.bancoId,
                     cliente = draft.cliente
                 )
             }
@@ -263,7 +301,9 @@ fun RegisterSheet(
                 val draft = initialDepositDrafts.first()
                 draftImage = null
                 draftEmpresa = draft.empresa
+                draftEmpresaId = draft.empresaId
                 draftBanco = draft.banco
+                draftBancoId = draft.bancoId
                 draftCliente = draft.cliente
                 editingItemId = null
                 mode = RegisterMode.Form
@@ -308,7 +348,9 @@ fun RegisterSheet(
                             empresa = it.empresa,
                             banco = it.banco,
                             cliente = it.cliente,
-                            imageUri = it.image.asModelString()
+                            imageUri = it.image.asModelString(),
+                            empresaId = it.empresaId,
+                            bancoId = it.bancoId
                         )
                     }
                     mode = RegisterMode.Success
@@ -340,6 +382,8 @@ fun RegisterSheet(
                             image = image,
                             empresa = draftEmpresa,
                             banco = draftBanco,
+                            empresaId = draftEmpresaId ?: sessionManager.getEmpresaId(),
+                            bancoId = draftBancoId ?: bancoIdsByName[draftBanco],
                             cliente = draftCliente
                         )
                     } else {
@@ -349,6 +393,8 @@ fun RegisterSheet(
                                     image = image,
                                     empresa = draftEmpresa,
                                     banco = draftBanco,
+                                    empresaId = draftEmpresaId ?: sessionManager.getEmpresaId(),
+                                    bancoId = draftBancoId ?: bancoIdsByName[draftBanco],
                                     cliente = draftCliente
                                 )
                             } else {
@@ -375,8 +421,10 @@ fun RegisterSheet(
                 onSelected = { option ->
                     if (target == PickerTarget.Empresa) {
                         draftEmpresa = option
+                        draftEmpresaId = sessionManager.getEmpresaId()
                     } else {
                         draftBanco = option
+                        draftBancoId = bancoIdsByName[option]
                     }
                     pickerTarget = null
                 }
@@ -518,8 +566,8 @@ private fun NewDepositContent(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.88f)
-            .padding(horizontal = 24.dp)
+            .fillMaxHeight(0.94f)
+            .padding(horizontal = 20.dp)
             .imePadding()
             .verticalScroll(rememberScrollState())
     ) {
@@ -544,7 +592,7 @@ private fun NewDepositContent(
             CircleIconButton(icon = Icons.Default.Close, onClick = onClose, contentDescription = "Cerrar")
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         VoucherPicker(
             image = image,
             onCamera = onCamera,
@@ -552,18 +600,18 @@ private fun NewDepositContent(
             onRemoveImage = onRemoveImage,
             imageEditable = !isEditing
         )
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         SelectorButton("Empresa", empresa, "Seleccionar Empresa", Icons.Default.Business, onOpenEmpresaPicker)
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         SelectorButton("Banco", banco, "Seleccionar Banco", Icons.Default.AccountBalance, onOpenBancoPicker)
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         ClientField(value = cliente, onValueChange = onClienteChange)
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Button(
             onClick = onAdd,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
+                .height(48.dp),
             enabled = canAdd,
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
@@ -579,7 +627,7 @@ private fun NewDepositContent(
                 fontSize = 15.sp
             )
         }
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(12.dp))
     }
 }
 
@@ -709,8 +757,8 @@ private fun VoucherPicker(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(465.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(380.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(Color(0xFFE7EAF4)),
         contentAlignment = Alignment.Center
     ) {
@@ -731,30 +779,30 @@ private fun VoucherPicker(
                 Surface(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(10.dp),
+                        .padding(8.dp),
                     color = Color(0xFFD64545),
-                    shape = RoundedCornerShape(18.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ) {
-                    IconButton(onClick = onRemoveImage, modifier = Modifier.size(34.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Quitar voucher", tint = Color.White, modifier = Modifier.size(17.dp))
+                    IconButton(onClick = onRemoveImage, modifier = Modifier.size(30.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Quitar voucher", tint = Color.White, modifier = Modifier.size(15.dp))
                     }
                 }
                 Surface(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .padding(12.dp),
+                        .padding(10.dp),
                     color = Color.Black.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(18.dp)
+                    shape = RoundedCornerShape(16.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .clickable(onClick = onCamera)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Cambiar", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
+                        Text("Cambiar", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -790,30 +838,30 @@ private fun SelectorButton(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
-            .clip(RoundedCornerShape(16.dp))
+            .height(46.dp)
+            .clip(RoundedCornerShape(14.dp))
             .border(
                 BorderStroke(
                     if (value.isBlank()) 0.dp else 1.dp,
                     if (value.isBlank()) Color.Transparent else PrimaryGreen
                 ),
-                RoundedCornerShape(16.dp)
+                RoundedCornerShape(14.dp)
             )
             .background(Color(0xFFE7EAF4))
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = if (value.isBlank()) Color(0xFF6A7394) else PrimaryGreen, modifier = Modifier.size(18.dp))
-        Spacer(modifier = Modifier.width(12.dp))
+        Icon(icon, contentDescription = null, tint = if (value.isBlank()) Color(0xFF6A7394) else PrimaryGreen, modifier = Modifier.size(16.dp))
+        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = value.ifBlank { placeholder },
             color = if (value.isBlank()) Color(0xFF6A7394) else Color(0xFF17265F),
-            fontSize = 14.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f)
         )
-        Icon(Icons.Default.ExpandMore, contentDescription = null, tint = Color(0xFF6A7394), modifier = Modifier.size(20.dp))
+        Icon(Icons.Default.ExpandMore, contentDescription = null, tint = Color(0xFF6A7394), modifier = Modifier.size(18.dp))
     }
 }
 
@@ -960,7 +1008,7 @@ private fun ClientField(value: String, onValueChange: (String) -> Unit) {
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
+            .height(46.dp)
             .bringIntoViewRequester(bringIntoViewRequester)
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
@@ -971,11 +1019,11 @@ private fun ClientField(value: String, onValueChange: (String) -> Unit) {
                     }
                 }
             },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(14.dp),
         leadingIcon = {
-            Icon(Icons.Default.Person, contentDescription = null, tint = if (value.isBlank()) Color(0xFF6A7394) else PrimaryGreen, modifier = Modifier.size(18.dp))
+            Icon(Icons.Default.Person, contentDescription = null, tint = if (value.isBlank()) Color(0xFF6A7394) else PrimaryGreen, modifier = Modifier.size(16.dp))
         },
-        placeholder = { Text("Nombre del cliente", color = Color(0xFF6A7394), fontSize = 14.sp) },
+        placeholder = { Text("Nombre del cliente", color = Color(0xFF6A7394), fontSize = 13.sp) },
         singleLine = true,
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color(0xFFE7EAF4),
@@ -1033,8 +1081,8 @@ private fun CircleIconButton(
 @Composable
 private fun VoucherImageView(image: VoucherImage, modifier: Modifier = Modifier) {
     when (image) {
-        is VoucherImage.Camera -> Image(image.bitmap.asImageBitmap(), null, modifier, contentScale = ContentScale.Crop)
-        is VoucherImage.Gallery -> Image(rememberAsyncImagePainter(image.uri), null, modifier, contentScale = ContentScale.Crop)
+        is VoucherImage.Camera -> Image(rememberAsyncImagePainter(image.uri), null, modifier, contentScale = ContentScale.Fit)
+        is VoucherImage.Gallery -> Image(rememberAsyncImagePainter(image.uri), null, modifier, contentScale = ContentScale.Fit)
         is VoucherImage.Pdf -> PdfPreview(
             uriString = image.uri.toString(),
             modifier = modifier,
@@ -1074,7 +1122,7 @@ private fun PdfVoucherView(modifier: Modifier = Modifier) {
 
 private fun VoucherImage.asModelString(): String {
     return when (this) {
-        is VoucherImage.Camera -> uri
+        is VoucherImage.Camera -> uri.toString()
         is VoucherImage.Gallery -> uri.toString()
         is VoucherImage.Pdf -> uri.toString()
     }
@@ -1084,12 +1132,13 @@ private fun DepositCartItem.isComplete(): Boolean {
     return empresa.isNotBlank() && banco.isNotBlank()
 }
 
-private fun saveBitmapToCache(context: Context, bitmap: Bitmap): String {
+private fun createCameraVoucherUri(context: Context): Uri {
     val file = File(context.cacheDir, "voucher_${System.currentTimeMillis()}.jpg")
-    FileOutputStream(file).use { output ->
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 92, output)
-    }
-    return file.absolutePath
+    return FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file
+    )
 }
 
 private fun Uri.toVoucherImage(context: Context): VoucherImage {
@@ -1138,6 +1187,20 @@ private fun voucherExtension(uri: Uri, mimeType: String?): String {
         "pdf" -> "pdf"
         else -> "jpg"
     }
+}
+
+private fun Uri.toLocalFile(context: Context, fallbackExtension: String): File {
+    if (scheme == "file") {
+        path?.let { return File(it) }
+    }
+
+    val mimeType = context.contentResolver.getType(this)
+    val extension = if (fallbackExtension == "pdf") "pdf" else voucherExtension(this, mimeType)
+    val file = File(context.cacheDir, "quality_voucher_${System.currentTimeMillis()}.$extension")
+    context.contentResolver.openInputStream(this)?.use { input ->
+        FileOutputStream(file).use { output -> input.copyTo(output) }
+    }
+    return file
 }
 
 @Preview(showBackground = true)

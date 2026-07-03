@@ -1,8 +1,11 @@
 package com.example.tconfirmo.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -17,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Done
@@ -32,6 +36,7 @@ import com.example.tconfirmo.ui.theme.DestructiveRed
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.tconfirmo.R
 import com.example.tconfirmo.data.ChatMessage
 import com.example.tconfirmo.data.MessageFrom
 import com.example.tconfirmo.data.ReportStatus
@@ -105,34 +110,71 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
                     }
                 }
             }
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Box {
+                Surface(
+                    modifier = Modifier
+                        .padding(start = 14.dp)
+                        .offset(y = (-21).dp)
+                        .size(46.dp)
+                        .align(Alignment.TopStart),
+                    shape = CircleShape,
+                    color = Color.White,
+                    border = BorderStroke(2.dp, PrimaryGreen.copy(alpha = 0.35f)),
+                    shadowElevation = 3.dp
                 ) {
-                    Text(
-                        text = card.empresa.split(" ")[0],
-                        fontSize = 10.sp,
-                        color = Color.Gray,
-                        fontWeight = FontWeight.Medium
+                    Image(
+                        painter = painterResource(id = card.companyLogoRes()),
+                        contentDescription = card.empresa,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(2.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop
                     )
-                    Surface(
-                        color = statusBg,
-                        shape = RoundedCornerShape(12.dp)
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 54.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = card.status.spanishLabel(),
-                            color = statusColor,
-                            fontSize = 10.sp,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            fontWeight = FontWeight.Bold
+                            text = card.banco.ifBlank { "Banco no definido" },
+                            fontSize = 12.sp,
+                            color = Color(0xFF17265F),
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            color = statusBg,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = card.status.spanishLabel(),
+                                color = statusColor,
+                                fontSize = 10.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = card.cliente.ifBlank { "Cliente no registrado" },
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF17265F),
+                        maxLines = 1
+                    )
                 }
-                Spacer(modifier = Modifier.height(1.dp))
-                Text(text = card.cliente, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text(text = card.banco, fontSize = 12.sp, color = Color.Gray)
             }
         }
     }
@@ -155,6 +197,13 @@ private fun ReportStatus.spanishLabel(): String {
     }
 }
 
+private fun VoucherCard.companyLogoRes(): Int {
+    return if (empresa.contains("EVOLUTION", ignoreCase = true)) {
+        R.drawable.evo_logo
+    } else {
+        R.drawable.jch_logo
+    }
+}
 @Composable
 fun StructuredBotBubble(data: StructuredBotData, time: String) {
     val isConfirm = data.type == BotMessageType.CONFIRMATION
@@ -421,3 +470,10 @@ fun MessageBubblePreview() {
         }
     }
 }
+
+
+
+
+
+
+
