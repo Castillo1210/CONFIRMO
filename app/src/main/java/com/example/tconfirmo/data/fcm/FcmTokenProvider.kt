@@ -25,6 +25,6 @@ class FcmTokenProvider(context: Context) {
         if (!token.isNullOrBlank()) {
             tokenStore.saveToken(token)
         }
-        return token
+        return token ?: tokenStore.getToken()
     }
 }

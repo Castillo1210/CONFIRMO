@@ -25,9 +25,8 @@ class SessionManager(context: Context) {
     fun isLoggedIn(): Boolean {
         val token = prefs.getString(KEY_ACCESS_TOKEN, null)
         val expiresAt = prefs.getLong(KEY_EXPIRES_AT, 0L)
-        val isTestMode = prefs.getBoolean(KEY_TEST_MODE, false)
         return !token.isNullOrBlank() &&
-            (isTestMode || token != "mock-access-token") &&
+            token != "mock-access-token" &&
             expiresAt > System.currentTimeMillis()
     }
 
@@ -36,6 +35,12 @@ class SessionManager(context: Context) {
     fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
 
     fun getEmpresaId(): String? = prefs.getString(KEY_EMPRESA_ID, null)
+
+    fun getSucursalId(): String? = prefs.getString(KEY_SUCURSAL_ID, null)
+
+    fun getFullName(): String? = prefs.getString(KEY_FULL_NAME, null)
+
+    fun getPhoneNumber(): String? = prefs.getString(KEY_PHONE_NUMBER, null)
 
     fun isTestMode(): Boolean = prefs.getBoolean(KEY_TEST_MODE, false)
 

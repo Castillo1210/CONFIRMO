@@ -64,3 +64,9 @@ data class BancoResponseDto(
     val nombre: String,
     val codigo: String?
 )
+
+data class EmpresaResponseDto(
+    val id: String,
+    val nombre: String,
+    val logo: String?
+)

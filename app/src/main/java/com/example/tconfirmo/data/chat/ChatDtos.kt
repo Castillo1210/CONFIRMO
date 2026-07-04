@@ -22,7 +22,8 @@ data class ChatHistoryResponseDto(
 )
 
 data class SendUserMessageRequestDto(
-    val content: String
+    val content: String,
+    val messageType: String = "text"
 )
 
 data class UploadChatImageRequestDto(

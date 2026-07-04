@@ -1,6 +1,5 @@
 package com.example.tconfirmo.data.auth
 
-import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.session.SessionManager
 import com.google.gson.Gson
 import java.io.IOException
@@ -11,16 +10,17 @@ class AuthRepository(
 ) {
     private val gson = Gson()
 
-    suspend fun login(phoneNumber: String, password: String, useTestMode: Boolean = BuildConfig.USE_MOCK_LOGIN): AuthResult {
-        if (useTestMode) {
-            return loginWithMockData(phoneNumber, password)
-        }
-
+    suspend fun login(
+        phoneNumber: String,
+        password: String,
+        fcmToken: String? = null
+    ): AuthResult {
         return try {
             val response = authApi.login(
                 LoginRequestDto(
                     phoneNumber = phoneNumber.toPeruPhoneNumber(),
-                    password = password
+                    password = password,
+                    fcmToken = fcmToken
                 )
             )
 
@@ -68,6 +68,14 @@ class AuthRepository(
         }
     }
 
+    suspend fun updateFcmToken(token: String): Boolean {
+        if (token.isBlank()) return false
+        return runCatching {
+            val response = authApi.updateFcmToken(FcmTokenRequestDto(token = token))
+            response.isSuccessful
+        }.getOrDefault(false)
+    }
+
     private fun retrofit2.Response<ChangePasswordResponseDto>.changePasswordErrorMessage(defaultMessage: String): String {
         body()?.message?.takeIf { it.isNotBlank() }?.let { return it }
         return runCatching {
@@ -77,35 +85,6 @@ class AuthRepository(
         }.getOrNull() ?: defaultMessage
     }
 
-    private fun loginWithMockData(phoneNumber: String, password: String): AuthResult {
-        val normalizedPhone = phoneNumber.trim()
-        if (normalizedPhone != MOCK_PHONE || password != MOCK_PASSWORD) {
-            return AuthResult.Error("Numero o contrasena incorrectos.")
-        }
-
-        sessionManager.saveSession(
-            LoginResponseDto(
-                accessToken = "mock-access-token",
-                refreshToken = "mock-refresh-token",
-                expiresInSeconds = 8 * 60 * 60,
-                user = UserInfoDto(
-                    id = "00000000-0000-0000-0000-000000000001",
-                    phoneNumber = normalizedPhone,
-                    fullName = "Usuario de Prueba",
-                    empresaId = "00000000-0000-0000-0000-000000000101",
-                    sucursalId = "00000000-0000-0000-0000-000000000201",
-                    fcmToken = null
-                )
-            ),
-            isTestMode = true
-        )
-        return AuthResult.Success
-    }
-
-    companion object {
-        const val MOCK_PHONE = "987654321"
-        const val MOCK_PASSWORD = "clave"
-    }
 }
 
 private fun String.toPeruPhoneNumber(): String {

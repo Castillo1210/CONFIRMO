@@ -73,6 +73,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -141,8 +142,9 @@ fun RegisterSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sessionManager = remember { SessionManager(context) }
     val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
-    val empresas = listOf("JCH COMERCIAL SA", "EVOLUTION CAR SERVICE")
-    var bancos by remember { mutableStateOf(listOf("BCP", "INTERBANK", "SCOTIABANK", "BBVA", "BANBIF", "PICHINCHA")) }
+    var empresas by remember { mutableStateOf(emptyList<String>()) }
+    var empresaIdsByName by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var bancos by remember { mutableStateOf(emptyList<String>()) }
     var bancoIdsByName by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     val canAddDraft = draftImage != null && draftEmpresa.isNotBlank() && draftBanco.isNotBlank()
     val canSubmit = items.isNotEmpty() && items.all { it.isComplete() }
@@ -260,10 +262,16 @@ fun RegisterSheet(
 
     LaunchedEffect(visible) {
         if (visible) {
-            val body = depositRepository.getBanks()
-            if (body.isNotEmpty()) {
-                bancos = body.map { it.nombre }
-                bancoIdsByName = body.associate { it.nombre to it.id }
+            val companyBody = depositRepository.getCompanies()
+            if (companyBody.isNotEmpty()) {
+                empresas = companyBody.map { it.nombre }
+                empresaIdsByName = companyBody.associate { it.nombre to it.id }
+            }
+
+            val bankBody = depositRepository.getBanks()
+            if (bankBody.isNotEmpty()) {
+                bancos = bankBody.map { it.nombre }
+                bancoIdsByName = bankBody.associate { it.nombre to it.id }
             }
         }
     }
@@ -421,7 +429,7 @@ fun RegisterSheet(
                 onSelected = { option ->
                     if (target == PickerTarget.Empresa) {
                         draftEmpresa = option
-                        draftEmpresaId = sessionManager.getEmpresaId()
+                        draftEmpresaId = empresaIdsByName[option] ?: sessionManager.getEmpresaId()
                     } else {
                         draftBanco = option
                         draftBancoId = bancoIdsByName[option]
@@ -915,6 +923,14 @@ private fun OptionPickerSheet(
             }
 
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                if (options.isEmpty()) {
+                    Text(
+                        text = "No hay opciones disponibles desde la API.",
+                        color = Color(0xFF6A7394),
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp)
+                    )
+                }
                 options.forEach { option ->
                     val isSelected = option == selected
                     Row(
@@ -1008,7 +1024,7 @@ private fun ClientField(value: String, onValueChange: (String) -> Unit) {
         onValueChange = onValueChange,
         modifier = Modifier
             .fillMaxWidth()
-            .height(46.dp)
+            .height(54.dp)
             .bringIntoViewRequester(bringIntoViewRequester)
             .onFocusChanged { focusState ->
                 if (focusState.isFocused) {
@@ -1023,11 +1039,28 @@ private fun ClientField(value: String, onValueChange: (String) -> Unit) {
         leadingIcon = {
             Icon(Icons.Default.Person, contentDescription = null, tint = if (value.isBlank()) Color(0xFF6A7394) else PrimaryGreen, modifier = Modifier.size(16.dp))
         },
-        placeholder = { Text("Nombre del cliente", color = Color(0xFF6A7394), fontSize = 13.sp) },
+        placeholder = {
+            Text(
+                "Nombre del cliente",
+                color = Color(0xFF6A7394),
+                fontSize = 13.sp
+            )
+        },
         singleLine = true,
+        textStyle = TextStyle(
+            color = Color(0xFF17265F),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = PlusJakartaSansFamily
+        ),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = Color(0xFFE7EAF4),
             unfocusedContainerColor = Color(0xFFE7EAF4),
+            focusedTextColor = Color(0xFF17265F),
+            unfocusedTextColor = Color(0xFF17265F),
+            focusedPlaceholderColor = Color(0xFF6A7394),
+            unfocusedPlaceholderColor = Color(0xFF6A7394),
+            cursorColor = PrimaryGreen,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
             disabledIndicatorColor = Color.Transparent

@@ -2,7 +2,8 @@ package com.example.tconfirmo.data.auth
 
 data class LoginRequestDto(
     val phoneNumber: String,
-    val password: String
+    val password: String,
+    val fcmToken: String? = null
 )
 
 data class LoginResponseDto(
@@ -38,4 +39,8 @@ data class ChangePasswordRequestDto(
 data class ChangePasswordResponseDto(
     val success: Boolean,
     val message: String
+)
+
+data class FcmTokenRequestDto(
+    val token: String
 )

@@ -5,6 +5,7 @@ import com.example.tconfirmo.data.auth.AuthApi
 import com.example.tconfirmo.data.chat.ChatApi
 import com.example.tconfirmo.data.deposits.DepositApi
 import com.example.tconfirmo.data.session.SessionManager
+import com.example.tconfirmo.data.vouchers.SignedVoucherApi
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -57,4 +58,5 @@ object ApiClient {
     val authApi: AuthApi = retrofit.create(AuthApi::class.java)
     val depositApi: DepositApi = retrofit.create(DepositApi::class.java)
     val chatApi: ChatApi = retrofit.create(ChatApi::class.java)
+    val signedVoucherApi: SignedVoucherApi = retrofit.create(SignedVoucherApi::class.java)
 }

@@ -9,10 +9,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -22,6 +24,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -35,12 +38,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,8 +57,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -64,18 +70,22 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.tconfirmo.data.auth.AuthRepository
 import com.example.tconfirmo.data.auth.AuthResult
-import com.example.tconfirmo.data.auth.AuthRepository.Companion.MOCK_PASSWORD
-import com.example.tconfirmo.data.auth.AuthRepository.Companion.MOCK_PHONE
+import com.example.tconfirmo.data.fcm.FcmTokenProvider
 import com.example.tconfirmo.data.remote.ApiClient
 import com.example.tconfirmo.data.session.SessionManager
 import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
 import com.example.tconfirmo.ui.theme.TConfirmoTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.view.View
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val keyboardVisible = WindowInsets.ime.getBottom(density) > 0
+    val fcmTokenProvider = remember { FcmTokenProvider(context) }
     val authRepository = remember {
         AuthRepository(
             authApi = ApiClient.authApi,
@@ -87,7 +97,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
-    var useTestMode by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val gradientBrush = Brush.verticalGradient(
@@ -106,6 +115,14 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
 
     )
 
+    DisposableEffect(view) {
+        val previous = view.importantForAutofill
+        view.importantForAutofill = View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS
+        onDispose {
+            view.importantForAutofill = previous
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -114,7 +131,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
         HeaderSection(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.52f),
+                .fillMaxHeight(if (keyboardVisible) 0.28f else 0.52f),
             gradientBrush = gradientBrush
         )
 
@@ -127,15 +144,6 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             onPasswordToggle = { passwordVisible = !passwordVisible },
             isLoading = isLoading,
             errorMessage = errorMessage,
-            useTestMode = useTestMode,
-            onTestModeChange = { enabled ->
-                useTestMode = enabled
-                errorMessage = null
-                if (enabled) {
-                    phone = MOCK_PHONE
-                    password = MOCK_PASSWORD
-                }
-            },
             onLoginClick = {
                 errorMessage = null
                 when {
@@ -144,7 +152,12 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     else -> {
                         isLoading = true
                         scope.launch {
-                            when (val result = authRepository.login(phone, password, useTestMode = useTestMode)) {
+                            val fcmToken = fcmTokenProvider.getCurrentToken()
+                            when (val result = authRepository.login(
+                                phoneNumber = phone,
+                                password = password,
+                                fcmToken = fcmToken
+                            )) {
                                 AuthResult.Success -> onLoginSuccess()
                                 is AuthResult.Error -> errorMessage = result.message
                             }
@@ -322,11 +335,11 @@ private fun LoginFormSection(
     onPasswordToggle: () -> Unit,
     isLoading: Boolean,
     errorMessage: String?,
-    useTestMode: Boolean,
-    onTestModeChange: (Boolean) -> Unit,
     onLoginClick: () -> Unit,
     modifier: Modifier
 ) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+
     Surface(
         modifier = modifier.imePadding(),
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -359,7 +372,10 @@ private fun LoginFormSection(
                 label = "NUMERO DE TELEFONO",
                 placeholder = "987 654 321",
                 leadingIcon = Icons.Default.Phone,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone)
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Phone,
+                    imeAction = ImeAction.Next
+                )
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -372,51 +388,20 @@ private fun LoginFormSection(
                 leadingIcon = Icons.Default.Lock,
                 isPassword = true,
                 passwordVisible = passwordVisible,
-                onPasswordToggle = onPasswordToggle
+                onPasswordToggle = onPasswordToggle,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Password,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        keyboardController?.hide()
+                        onLoginClick()
+                    }
+                )
             )
 
             Spacer(modifier = Modifier.height(24.dp))
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = if (useTestMode) Color(0xFFFFF6B8) else Color.White,
-                border = BorderStroke(
-                    1.dp,
-                    if (useTestMode) Color(0xFFFFE500) else Color(0xFFE1E5F2)
-                )
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Modo prueba",
-                            color = Color(0xFF17265F),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (useTestMode) {
-                                "Usando datos locales sin API real"
-                            } else {
-                                "Usando API bridge real"
-                            },
-                            color = Color(0xFF6A7394),
-                            fontSize = 11.sp
-                        )
-                    }
-                    Switch(
-                        checked = useTestMode,
-                        onCheckedChange = onTestModeChange,
-                        enabled = !isLoading
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
 
             if (!errorMessage.isNullOrBlank()) {
                 Text(
@@ -451,7 +436,7 @@ private fun LoginFormSection(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(120.dp))
 
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -478,7 +463,8 @@ private fun CustomTextField(
     isPassword: Boolean = false,
     passwordVisible: Boolean = false,
     onPasswordToggle: (() -> Unit)? = null,
-    keyboardOptions: KeyboardOptions = KeyboardOptions.Default
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -541,6 +527,7 @@ private fun CustomTextField(
         },
         visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
         singleLine = true
     )
 }

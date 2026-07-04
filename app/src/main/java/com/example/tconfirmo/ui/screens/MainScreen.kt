@@ -75,11 +75,15 @@ import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.*
 import com.example.tconfirmo.data.auth.AuthRepository
 import com.example.tconfirmo.data.auth.AuthResult
+import com.example.tconfirmo.data.chat.ChatRepository
+import com.example.tconfirmo.data.deposits.DepositCreateResult
 import com.example.tconfirmo.data.deposits.DepositRepository
 import com.example.tconfirmo.data.realtime.RealtimeClient
 import com.example.tconfirmo.data.realtime.RealtimeEvent
 import com.example.tconfirmo.data.remote.ApiClient
 import com.example.tconfirmo.data.session.SessionManager
+import com.example.tconfirmo.data.vouchers.SignedVoucherRepository
+import com.example.tconfirmo.data.vouchers.SignedVoucherResult
 import com.example.tconfirmo.ui.components.MessageBubble
 import com.example.tconfirmo.ui.components.PdfPreview
 import com.example.tconfirmo.ui.components.RegisterSheet
@@ -99,6 +103,7 @@ import com.example.tconfirmo.ui.theme.PlusJakartaSansFamily
 
 private const val REGISTER_SESSION_PREFS = "tconfirmo_register_session"
 private const val KEY_PENDING_SHARED_VOUCHERS = "pending_shared_vouchers"
+private const val KEY_REPORT_DAYS_BACK = "report_days_back"
 
 @Composable
 fun MainScreen(
@@ -113,6 +118,7 @@ fun MainScreen(
     val registerScope = rememberCoroutineScope()
     val sessionManager = remember { SessionManager(context) }
     val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
+    val chatRepository = remember { ChatRepository() }
     var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
     var showRegisterSheet by remember { mutableStateOf(false) }
     var registerSharedVoucherUriStrings by rememberSaveable {
@@ -120,16 +126,24 @@ fun MainScreen(
     }
     var registerInitialDrafts by remember { mutableStateOf<List<DepositDraft>>(emptyList()) }
     var registerResetKey by remember { mutableStateOf(0) }
-    var messages by remember { mutableStateOf(getInitialMessages()) }
-    var reports by remember { mutableStateOf(getInitialReports()) }
+    var reportDaysBack by rememberSaveable { mutableStateOf(loadSavedReportDaysBack(context)) }
+    var isLoadingReports by remember { mutableStateOf(false) }
+    var reportLoadingMessage by remember { mutableStateOf("") }
+    var messages by remember { mutableStateOf(emptyList<ChatMessage>()) }
+    var reports by remember { mutableStateOf(emptyList<Report>()) }
     var reportsBackPressCount by remember { mutableStateOf(0) }
 
-    suspend fun refreshReportsFromApi() {
+    suspend fun refreshReportsFromApi(daysBack: Int = reportDaysBack) {
         if (sessionManager.isTestMode()) return
-        val remoteReports = depositRepository.getReports()
-        if (remoteReports.isNotEmpty()) {
-            reports = remoteReports
+        isLoadingReports = true
+        reportLoadingMessage = reportSearchMessage(daysBack)
+        val remoteReports = depositRepository.getReports(daysBack = daysBack)
+        reports = remoteReports
+        val historyMessages = chatRepository.getHistories(remoteReports.map { it.id })
+        if (historyMessages.isNotEmpty()) {
+            messages = mergeChatMessages(messages, historyMessages)
         }
+        isLoadingReports = false
     }
 
     LaunchedEffect(Unit) {
@@ -423,6 +437,9 @@ fun MainScreen(
                 when (tab) {
                     0 -> ReportsTab(
                         reports = reports,
+                        daysBack = reportDaysBack,
+                        isLoading = isLoadingReports,
+                        loadingMessage = reportLoadingMessage,
                         onOpenRegister = {
                             updatePendingSharedVouchers(emptyList())
                             registerInitialDrafts = emptyList()
@@ -441,6 +458,15 @@ fun MainScreen(
                             )
                             registerResetKey += 1
                             showRegisterSheet = true
+                        },
+                        onLoadPreviousDays = {
+                            val nextDaysBack = reportDaysBack + 1
+                            reportDaysBack = nextDaysBack
+                            saveReportDaysBack(context, nextDaysBack)
+                            val searchMessage = reportSearchMessage(nextDaysBack)
+                            reportLoadingMessage = searchMessage
+                            Toast.makeText(context, searchMessage, Toast.LENGTH_SHORT).show()
+                            registerScope.launch { refreshReportsFromApi(nextDaysBack) }
                         }
                     )
                     1 -> ChatTab(
@@ -450,15 +476,28 @@ fun MainScreen(
                             showRegisterSheet = true
                         },
                         onSendMessage = { text ->
+                            val cleanText = text.trim()
+                            val targetDepositId = reports.firstOrNull()?.id.orEmpty()
                             val newMsg = ChatMessage(
                                 id = UUID.randomUUID().toString(),
                                 from = MessageFrom.USER,
-                                text = text,
+                                text = cleanText,
                                 date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()),
                                 time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date()),
                                 status = MessageStatus.SENT
                             )
                             messages = messages + newMsg
+                            if (targetDepositId.isNotBlank()) {
+                                registerScope.launch {
+                                    val sent = chatRepository.sendTextMessage(
+                                        depositId = targetDepositId,
+                                        content = cleanText
+                                    )
+                                    if (!sent) {
+                                        Toast.makeText(context, "No se pudo guardar el mensaje en chat.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
                         }
                     )
                     2 -> NoticesTab()
@@ -487,24 +526,37 @@ fun MainScreen(
             },
             onSubmit = { solicitudes ->
                 registerScope.launch {
+                    val errors = mutableListOf<String>()
                     val submitted = solicitudes.mapNotNull { solicitud ->
-                        val depositId = depositRepository.createDeposit(solicitud)
-                        if (depositId == null) null else solicitud to depositId
+                        when (val result = depositRepository.createDepositDetailed(solicitud)) {
+                            is DepositCreateResult.Success -> solicitud to result.depositId
+                            is DepositCreateResult.Error -> {
+                                errors += result.message
+                                null
+                            }
+                        }
                     }
 
                     if (submitted.isEmpty()) {
-                        Toast.makeText(context, "No se pudo registrar el deposito en la API.", Toast.LENGTH_LONG).show()
-                        showRegisterSheet = false
-                        registerResetKey += 1
+                        Toast.makeText(
+                            context,
+                            errors.firstOrNull() ?: "No se pudo registrar el deposito en la API.",
+                            Toast.LENGTH_LONG
+                        ).show()
                         return@launch
                     }
 
                     if (submitted.size < solicitudes.size) {
-                        Toast.makeText(context, "Algunos depositos no se pudieron registrar.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            errors.firstOrNull() ?: "Algunos depositos no se pudieron registrar.",
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
 
                     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                     val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                    val chatFailures = mutableListOf<String>()
                     val newMessages = submitted.mapIndexed { index, (solicitud, _) ->
                         val sid = "#${(reports.size + index + 1).toString().padStart(3, '0')}"
                         val voucherName = voucherFileName(sid, solicitud.imageUri)
@@ -530,6 +582,12 @@ fun MainScreen(
                         val solicitud = pair.first
                         val depositId = pair.second
                         val sid = "#${(reports.size + index + 1).toString().padStart(3, '0')}"
+                        val chatRegistered = chatRepository.registerDepositMessage(
+                            depositId = depositId,
+                            solicitudNum = sid,
+                            draft = solicitud
+                        )
+                        if (!chatRegistered) chatFailures += sid
                         val voucherName = voucherFileName(sid, solicitud.imageUri)
                         Report(
                             id = depositId,
@@ -547,6 +605,15 @@ fun MainScreen(
 
                     messages = messages + newMessages
                     reports = newReports + reports
+                    if (chatFailures.isNotEmpty()) {
+                        Toast.makeText(
+                            context,
+                            "Deposito registrado, pero no se pudo guardar en chat: ${chatFailures.joinToString()}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    reportDaysBack = 0
+                    saveReportDaysBack(context, 0)
                     showRegisterSheet = false
                     updatePendingSharedVouchers(emptyList())
                     registerInitialDrafts = emptyList()
@@ -1079,8 +1146,12 @@ private fun VoucherImageDialog(
 @Composable
 fun ReportsTab(
     reports: List<Report>,
+    daysBack: Int,
+    isLoading: Boolean,
+    loadingMessage: String,
     onOpenRegister: () -> Unit,
-    onRegularize: (Report) -> Unit
+    onRegularize: (Report) -> Unit,
+    onLoadPreviousDays: () -> Unit
 ) {
     var filter by remember { mutableStateOf("all") }
     var currentPage by remember { mutableStateOf(0) }
@@ -1136,7 +1207,15 @@ fun ReportsTab(
                         fontSize = 18.sp,
                         fontFamily = PlusJakartaSansFamily
                     )
-                    Text("${reports.size} solicitudes registradas", color = Color(0xFFFFF6B8), fontSize = 12.sp)
+                    Text(
+                        if (daysBack == 0) {
+                            "${reports.size} solicitudes de hoy"
+                        } else {
+                            "${reports.size} solicitudes de los ultimos ${daysBack + 1} dias"
+                        },
+                        color = Color(0xFFFFF6B8),
+                        fontSize = 12.sp
+                    )
                 }
                 Spacer(modifier = Modifier.weight(1f))
                 Box {
@@ -1189,6 +1268,31 @@ fun ReportsTab(
             }
         }
 
+        AnimatedVisibility(visible = isLoading) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFFFF6B8)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = PrimaryGreen,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        loadingMessage.ifBlank { "Buscando depositos..." },
+                        color = PrimaryDarkGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
         // Filters
         LazyRow(
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -1208,6 +1312,11 @@ fun ReportsTab(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            if (pagedReports.isEmpty()) {
+                item {
+                    EmptyReportsState(daysBack = daysBack)
+                }
+            }
             items(
                 items = pagedReports,
                 key = { it.id }
@@ -1226,7 +1335,13 @@ fun ReportsTab(
             totalPages = totalPages,
             onPageSelected = { page -> currentPage = page },
             onPrevious = { currentPage = (currentPage - 1).coerceAtLeast(0) },
-            onNext = { currentPage = (currentPage + 1).coerceAtMost(totalPages - 1) },
+            onNext = {
+                if (currentPage < totalPages - 1) {
+                    currentPage += 1
+                } else {
+                    onLoadPreviousDays()
+                }
+            },
             onOpenRegister = onOpenRegister
         )
 
@@ -1247,6 +1362,46 @@ private enum class ExportDateRange(val label: String, val description: String) {
     All("Todo", "Exportar todos los reportes")
 }
 
+@Composable
+private fun EmptyReportsState(daysBack: Int) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+        shape = RoundedCornerShape(22.dp),
+        color = Color.White,
+        border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
+        shadowElevation = 2.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                modifier = Modifier.size(46.dp),
+                shape = CircleShape,
+                color = Color(0xFFFFF6B8)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(24.dp))
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                if (daysBack == 0) "No hay depositos de hoy" else "No hay depositos en este rango",
+                color = PrimaryDarkGreen,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                "Presiona Sig. para consultar dias anteriores.",
+                color = Color(0xFF6A7394),
+                fontSize = 12.sp
+            )
+        }
+    }
+}
 @Composable
 private fun ReportsPaginationBar(
     currentPage: Int,
@@ -1298,7 +1453,7 @@ private fun ReportsPaginationBar(
                         text = "Sig.",
                         icon = Icons.Default.ChevronRight,
                         onClick = onNext,
-                        enabled = currentPage < totalPages - 1,
+                        enabled = true,
                         iconFirst = false,
                         contentDescription = "Pagina siguiente"
                     )
@@ -1917,14 +2072,13 @@ private fun ReportVoucherSection(report: Report) {
                         .height(520.dp)
                 )
 
-                else -> coil.compose.AsyncImage(
-                    model = imageUrl,
+                else -> SignedVoucherImage(
+                    voucherReference = imageUrl,
                     contentDescription = "Voucher ${report.solicitudNum}",
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(520.dp)
-                        .background(Color(0xFFF8FAFF)),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                        .background(Color(0xFFF8FAFF))
                 )
             }
             Row(
@@ -1954,6 +2108,116 @@ private fun ReportVoucherSection(report: Report) {
 @Composable
 private fun PdfReportPreview(uriString: String, modifier: Modifier = Modifier) {
     PdfPreview(uriString = uriString, modifier = modifier, label = "Documento PDF adjunto")
+}
+
+@Composable
+private fun SignedVoucherImage(
+    voucherReference: String,
+    contentDescription: String,
+    modifier: Modifier = Modifier
+) {
+    val signedVoucherRepository = remember { SignedVoucherRepository() }
+    var signedUrl by remember(voucherReference) { mutableStateOf<String?>(null) }
+    var errorMessage by remember(voucherReference) { mutableStateOf<String?>(null) }
+    var isRequestingSignedUrl by remember(voucherReference) { mutableStateOf(false) }
+    val shouldRequestSignedUrl = voucherReference.requiresSignedUrl()
+
+    LaunchedEffect(voucherReference) {
+        signedUrl = null
+        errorMessage = null
+        if (!shouldRequestSignedUrl) return@LaunchedEffect
+
+        isRequestingSignedUrl = true
+        when (val result = signedVoucherRepository.getSignedUrl(voucherReference)) {
+            is SignedVoucherResult.Success -> signedUrl = result.signedUrl
+            is SignedVoucherResult.Error -> errorMessage = result.message
+        }
+        isRequestingSignedUrl = false
+    }
+
+    val imageModel = if (shouldRequestSignedUrl) signedUrl else voucherReference
+    val painter = coil.compose.rememberAsyncImagePainter(model = imageModel)
+    val state = painter.state
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        if (!imageModel.isNullOrBlank()) {
+            Image(
+                painter = painter,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        }
+
+        when (state) {
+            is coil.compose.AsyncImagePainter.State.Loading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(28.dp),
+                    color = PrimaryGreen,
+                    strokeWidth = 2.dp
+                )
+            }
+            is coil.compose.AsyncImagePainter.State.Error -> {
+                VoucherLoadErrorPreview("La URL firmada expiro o no se pudo leer el archivo.")
+            }
+            else -> Unit
+        }
+
+        if (isRequestingSignedUrl) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(28.dp),
+                color = PrimaryGreen,
+                strokeWidth = 2.dp
+            )
+        }
+
+        errorMessage?.let { message ->
+            VoucherLoadErrorPreview(message)
+        }
+    }
+}
+
+@Composable
+private fun VoucherLoadErrorPreview(message: String = "No se pudo cargar el voucher") {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(18.dp)
+    ) {
+        Icon(
+            Icons.Default.Lock,
+            contentDescription = null,
+            tint = Color(0xFFB71C1C),
+            modifier = Modifier.size(42.dp)
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            "No se pudo cargar el voucher",
+            color = PrimaryDarkGreen,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            message,
+            color = Color(0xFF6A7394),
+            fontSize = 11.sp,
+            lineHeight = 14.sp
+        )
+    }
+}
+
+private fun String.requiresSignedUrl(): Boolean {
+    val value = trim()
+    if (value.startsWith("content://", ignoreCase = true) || value.startsWith("file://", ignoreCase = true)) {
+        return false
+    }
+    if (value.startsWith("https://", ignoreCase = true) && !value.contains("storage.googleapis.com", ignoreCase = true)) {
+        return false
+    }
+    return true
 }
 
 @Composable
@@ -2122,14 +2386,28 @@ fun SettingsTab(
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager(context) }
+    val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
     val authRepository = remember {
         AuthRepository(
             authApi = ApiClient.authApi,
             sessionManager = sessionManager
         )
     }
+    val fullName = sessionManager.getFullName().orEmpty()
+    val phoneNumber = sessionManager.getPhoneNumber().orEmpty()
+    val empresaId = sessionManager.getEmpresaId().orEmpty()
+    val sucursalId = sessionManager.getSucursalId().orEmpty()
+    var empresaName by remember { mutableStateOf("") }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(empresaId) {
+        empresaName = depositRepository
+            .getCompanies()
+            .firstOrNull { it.id == empresaId }
+            ?.nombre
+            .orEmpty()
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         // Header
@@ -2170,17 +2448,18 @@ fun SettingsTab(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = PrimaryGreen) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("JP", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                Text(fullName.userInitials(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                             }
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
-                            Text("Juan Perez Garcia", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PrimaryDarkGreen)
+                            Text(fullName.ifBlank { "Usuario" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PrimaryDarkGreen)
                         }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
-                    SettingsRow(Icons.Default.Store, "Tienda", "PIURA AV. SANCHEZ CERRO 1222")
-                    SettingsRow(Icons.Default.Phone, "Celular", "987654321")
+                    SettingsRow(Icons.Default.Business, "Empresa", empresaName.ifBlank { "No disponible" })
+                    SettingsRow(Icons.Default.Store, "Sucursal", if (sucursalId.isBlank()) "No disponible" else "Asignada")
+                    SettingsRow(Icons.Default.Phone, "Celular", phoneNumber.displayPhone())
                 }
             }
 
@@ -2201,11 +2480,7 @@ fun SettingsTab(
                         "Cambiar contrasena",
                         "Actualiza tu acceso",
                         onClick = {
-                            if (sessionManager.isTestMode()) {
-                                Toast.makeText(context, "No disponible en modo prueba.", Toast.LENGTH_SHORT).show()
-                            } else {
-                                showPasswordDialog = true
-                            }
+                            showPasswordDialog = true
                         }
                     )
                     SettingsActionRow(
@@ -2280,6 +2555,24 @@ fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: St
         Spacer(modifier = Modifier.width(12.dp))
         Text(label, fontSize = 12.sp, color = Color.Gray, modifier = Modifier.width(60.dp))
         Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
+    }
+}
+
+private fun String.userInitials(): String {
+    val parts = trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+    return parts
+        .take(2)
+        .mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }
+        .joinToString("")
+        .ifBlank { "U" }
+}
+
+private fun String.displayPhone(): String {
+    val digits = filter { it.isDigit() }
+    return when {
+        digits.length == 11 && digits.startsWith("51") -> digits.drop(2)
+        digits.isNotBlank() -> digits
+        else -> "No disponible"
     }
 }
 
@@ -2524,86 +2817,20 @@ private fun PasswordField(
 }
 
 fun getInitialMessages(): List<ChatMessage> {
-    val today = todayChatDate()
-    return listOf(
-        ChatMessage(
-            id = "m1", from = MessageFrom.BOT,
-            text = "?? Hola Juan. Estoy listo para recibir tus depositos. Usa el boton de camara ?? para registrar un voucher.",
-            date = today,
-            time = "08:00"
-        ),
-        ChatMessage(
-            id = "m2", from = MessageFrom.USER,
-            voucherCard = VoucherCard(
-                solicitudId = "#001", voucherName = "Voucher_001.jpg",
-                imageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=280&h=180&fit=crop&auto=format",
-                empresa = "JCH COMERCIAL SA", banco = "BCP", cliente = "Carlos Mendoza", status = ReportStatus.VALIDATED
-            ),
-            date = "17/06/2026",
-            time = "14:22",
-            status = MessageStatus.READ
-        ),
-        ChatMessage(
-            id = "m3", from = MessageFrom.BOT,
-            structuredData = StructuredBotData(
-                type = BotMessageType.CONFIRMATION,
-                title = "DEPOSITO CONFIRMADO",
-                rows = listOf(
-                    "Empresa" to "JCH COMERCIAL SA",
-                    "Sucursal" to "PIURA AV. SANCHEZ CERRO 1222",
-                    "Banco" to "BCP",
-                    "Anexo" to "RECAU MN",
-                    "Fecha" to "17/06/2026",
-                    "Operacion" to "2545539",
-                    "Importe" to "PEN 800.00"
-                ),
-                footer = "? Validado y registrado exitosamente."
-            ),
-            date = "17/06/2026",
-            time = "14:23"
-        ),
-        ChatMessage(
-            id = "m4", from = MessageFrom.USER,
-            voucherCard = VoucherCard(
-                solicitudId = "#002", voucherName = "Voucher_002.jpg",
-                imageUrl = "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=280&h=180&fit=crop&auto=format",
-                empresa = "EVOLUTION CAR SERVICE", banco = "INTERBANK", cliente = "Diana Flores", status = ReportStatus.PENDING
-            ),
-            date = "17/06/2026",
-            time = "15:10",
-            status = MessageStatus.READ
-        ),
-        ChatMessage(
-            id = "m5", from = MessageFrom.BOT,
-            text = "? Solicitud #002 recibida. En proceso de validacion.",
-            date = "17/06/2026",
-            time = "15:11"
-        )
-    )
+    return emptyList()
 }
 
 fun getInitialReports(): List<Report> {
-    return listOf(
-        Report(
-            id = "r1", solicitudNum = "#001",
-            empresa = "JCH COMERCIAL SA", cliente = "Carlos Mendoza", banco = "BCP",
-            fecha = "17/06/2026", hora = "14:22", status = ReportStatus.VALIDATED,
-            importe = "PEN 800.00", operacion = "2545539", sucursal = "PIURA AV. SANCHEZ CERRO 1222"
-        ),
-        Report(
-            id = "r2", solicitudNum = "#002",
-            empresa = "EVOLUTION CAR SERVICE", cliente = "Diana Flores", banco = "INTERBANK",
-            fecha = "17/06/2026", hora = "15:10", status = ReportStatus.PENDING,
-            sucursal = "PIURA AV. SANCHEZ CERRO 1222"
-        ),
-        Report(
-            id = "r3", solicitudNum = "#003",
-            empresa = "JCH COMERCIAL SA", cliente = "Pedro Ruiz", banco = "SCOTIABANK",
-            fecha = "16/06/2026", hora = "09:45", status = ReportStatus.REJECTED,
-            mensajeValidacion = "Voucher ilegible. Reenvie con mejor calidad de imagen.",
-            sucursal = "PIURA AV. SANCHEZ CERRO 1222"
-        )
-    )
+    return emptyList()
+}
+
+private fun mergeChatMessages(
+    currentMessages: List<ChatMessage>,
+    incomingMessages: List<ChatMessage>
+): List<ChatMessage> {
+    return (currentMessages + incomingMessages)
+        .distinctBy { it.id }
+        .sortedWith(compareBy<ChatMessage> { it.chatSortDate(todayChatDate()) }.thenBy { it.time })
 }
 
 private fun ChatMessage.searchableText(): String {
@@ -2711,6 +2938,30 @@ private fun loadPendingSharedVoucherUriStrings(context: Context): List<String> {
         val json = JSONArray(raw)
         List(json.length()) { index -> json.getString(index) }
     }.getOrDefault(emptyList())
+}
+
+private fun loadSavedReportDaysBack(context: Context): Int {
+    return context
+        .getSharedPreferences(REGISTER_SESSION_PREFS, Context.MODE_PRIVATE)
+        .getInt(KEY_REPORT_DAYS_BACK, 0)
+        .coerceAtLeast(0)
+}
+
+private fun saveReportDaysBack(context: Context, daysBack: Int) {
+    context
+        .getSharedPreferences(REGISTER_SESSION_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putInt(KEY_REPORT_DAYS_BACK, daysBack.coerceAtLeast(0))
+        .apply()
+}
+
+private fun reportSearchMessage(daysBack: Int): String {
+    if (daysBack <= 0) return "Buscando depositos de hoy"
+    val start = Calendar.getInstance().apply {
+        add(Calendar.DAY_OF_YEAR, -daysBack)
+    }.time
+    val startLabel = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(start)
+    return "Buscando depositos desde $startLabel hasta hoy"
 }
 
 private fun savePendingSharedVoucherUriStrings(context: Context, values: List<String>) {

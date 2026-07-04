@@ -16,6 +16,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.tconfirmo.data.auth.AuthRepository
 import com.example.tconfirmo.data.fcm.FcmTokenProvider
 import com.example.tconfirmo.data.offline.FirebaseOfflineClient
 import com.example.tconfirmo.data.realtime.RealtimeClient
@@ -118,7 +119,10 @@ class MainActivity : ComponentActivity() {
         if (sessionManager.isTestMode()) return
         val token = fcmTokenProvider.getCurrentToken()
         if (!token.isNullOrBlank()) {
-            realtimeClient.registerFcmToken(token)
+            AuthRepository(
+                authApi = ApiClient.authApi,
+                sessionManager = sessionManager
+            ).updateFcmToken(token)
         }
     }
 

@@ -16,8 +16,8 @@ android {
         applicationId = "com.example.tconfirmo"
         minSdk = 24
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.7"
+        versionCode = 9
+        versionName = "1.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
@@ -29,11 +29,6 @@ android {
             "String",
             "API_BASE_URL",
             "\"http://34.44.185.224:8080/\""
-        )
-        buildConfigField(
-            "Boolean",
-            "USE_MOCK_LOGIN",
-            "false"
         )
         buildConfigField(
             "String",

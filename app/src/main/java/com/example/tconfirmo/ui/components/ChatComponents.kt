@@ -439,9 +439,9 @@ fun MessageBubblePreview() {
                         solicitudId = "#001",
                         voucherName = "Voucher_BCP.jpg",
                         imageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f",
-                        empresa = "JCH COMERCIAL SA",
+                        empresa = "",
                         banco = "BCP",
-                        cliente = "Carlos Mendoza",
+                        cliente = "",
                         status = ReportStatus.VALIDATED
                     ),
                     time = "14:22",
@@ -457,10 +457,10 @@ fun MessageBubblePreview() {
                         type = BotMessageType.CONFIRMATION,
                         title = "DEPÓSITO CONFIRMADO",
                         rows = listOf(
-                            "Empresa" to "JCH COMERCIAL SA",
+                            "Empresa" to "",
                             "Banco" to "BCP",
-                            "Operacion" to "2545539",
-                            "Importe" to "PEN 800.00"
+                            "Operacion" to "",
+                            "Importe" to ""
                         ),
                         footer = "Validado y registrado exitosamente."
                     ),
