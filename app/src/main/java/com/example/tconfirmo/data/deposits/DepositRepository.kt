@@ -70,7 +70,7 @@ class DepositRepository(
             val detail = getDepositDetail(item.id)
             reports += item.toReport(
                 solicitudNum = "#${(index + 1).toString().padStart(3, '0')}",
-                imageUrl = detail?.voucherUrl,
+                imageUrl = detail?.imagenUrl ?: detail?.imagenVoucher,
                 mensajeValidacion = detail?.motivoRechazo,
                 empresa = detail?.empresaId.resolveCompanyName(companiesById),
                 banco = detail?.bancoId.resolveBankName(banksById),

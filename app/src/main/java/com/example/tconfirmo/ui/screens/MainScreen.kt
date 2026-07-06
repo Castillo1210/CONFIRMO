@@ -139,7 +139,7 @@ fun MainScreen(
         reportLoadingMessage = reportSearchMessage(daysBack)
         val remoteReports = depositRepository.getReports(daysBack = daysBack)
         reports = remoteReports
-        val historyMessages = chatRepository.getHistories(remoteReports.map { it.id })
+        val historyMessages = chatRepository.getHistoriesForReports(remoteReports)
         if (historyMessages.isNotEmpty()) {
             messages = mergeChatMessages(messages, historyMessages)
         }
@@ -157,12 +157,25 @@ fun MainScreen(
                     val realtimeMessage = event.message
                     val content = realtimeMessage?.content.orEmpty()
                     val messageId = realtimeMessage?.id ?: event.messageId ?: UUID.randomUUID().toString()
-                    if (content.isNotBlank() && messages.none { it.id == messageId }) {
+                    val messageType = realtimeMessage?.messageType.orEmpty().lowercase(Locale.ROOT)
+                    val depositId = event.depositId ?: realtimeMessage?.depositId
+                    val voucherCard = if (messageType == "image") {
+                        reports.firstOrNull { it.id == depositId }?.toVoucherCard()
+                    } else {
+                        null
+                    }
+                    if (messageType == "image" && voucherCard == null) {
+                        refreshReportsFromApi()
+                        return@collect
+                    }
+                    val shouldShowMessage = content.isNotBlank() || voucherCard != null
+                    if (shouldShowMessage && messages.none { it.id == messageId }) {
                         val createdAt = realtimeMessage?.createdAt ?: event.createdAt
                         messages = messages + ChatMessage(
                             id = messageId,
                             from = realtimeMessage?.senderType.toMessageFrom(),
-                            text = content,
+                            text = if (messageType == "image") null else content,
+                            voucherCard = voucherCard,
                             date = createdAt.toChatDate(),
                             time = createdAt.toChatTime(),
                             status = MessageStatus.DELIVERED
@@ -2214,7 +2227,7 @@ private fun String.requiresSignedUrl(): Boolean {
     if (value.startsWith("content://", ignoreCase = true) || value.startsWith("file://", ignoreCase = true)) {
         return false
     }
-    if (value.startsWith("https://", ignoreCase = true) && !value.contains("storage.googleapis.com", ignoreCase = true)) {
+    if (value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true)) {
         return false
     }
     return true
@@ -2904,6 +2917,18 @@ private fun chatListIndexForMessage(
 private fun voucherFileName(solicitudId: String, imageUri: String): String {
     val extension = voucherExtension(imageUri)
     return "Voucher_${solicitudId.replace("#", "")}.$extension"
+}
+
+private fun Report.toVoucherCard(): VoucherCard {
+    return VoucherCard(
+        solicitudId = solicitudNum,
+        voucherName = voucherName ?: "Voucher_${solicitudNum.replace("#", "")}.jpg",
+        imageUrl = imageUrl.orEmpty(),
+        empresa = empresa,
+        banco = banco,
+        cliente = cliente,
+        status = status
+    )
 }
 
 private fun copySharedVoucherToSessionCache(context: Context, uri: Uri): String {

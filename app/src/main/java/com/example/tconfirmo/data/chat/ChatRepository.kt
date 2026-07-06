@@ -4,6 +4,8 @@ import com.example.tconfirmo.data.ChatMessage
 import com.example.tconfirmo.data.DepositDraft
 import com.example.tconfirmo.data.MessageFrom
 import com.example.tconfirmo.data.MessageStatus
+import com.example.tconfirmo.data.Report
+import com.example.tconfirmo.data.VoucherCard
 import com.example.tconfirmo.data.remote.ApiClient
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -13,7 +15,7 @@ import java.util.TimeZone
 class ChatRepository(
     private val chatApi: ChatApi = ApiClient.chatApi
 ) {
-    suspend fun getHistory(depositId: String, limit: Int = 50): List<ChatMessage> {
+    suspend fun getHistory(depositId: String, report: Report? = null, limit: Int = 50): List<ChatMessage> {
         val response = runCatching {
             chatApi.getChatHistory(depositId = depositId, limit = limit)
         }.getOrNull() ?: return emptyList()
@@ -23,13 +25,23 @@ class ChatRepository(
         return response.body()
             ?.messages
             .orEmpty()
-            .map { it.toChatMessage() }
+            .mapNotNull { it.toChatMessage(report) }
     }
 
     suspend fun getHistories(depositIds: List<String>, limit: Int = 50): List<ChatMessage> {
         return depositIds
             .distinct()
-            .flatMap { depositId -> getHistory(depositId, limit) }
+            .flatMap { depositId -> getHistory(depositId, limit = limit) }
+            .distinctBy { it.id }
+            .sortedWith(compareBy<ChatMessage> { it.date.toSortableDate() }.thenBy { it.time })
+    }
+
+    suspend fun getHistoriesForReports(reports: List<Report>, limit: Int = 50): List<ChatMessage> {
+        val reportsById = reports.associateBy { it.id }
+        return reports
+            .map { it.id }
+            .distinct()
+            .flatMap { depositId -> getHistory(depositId, reportsById[depositId], limit) }
             .distinctBy { it.id }
             .sortedWith(compareBy<ChatMessage> { it.date.toSortableDate() }.thenBy { it.time })
     }
@@ -68,14 +80,37 @@ class ChatRepository(
         }.getOrDefault(false)
     }
 
-    private fun ChatMessageResponseDto.toChatMessage(): ChatMessage {
+    private fun ChatMessageResponseDto.toChatMessage(report: Report? = null): ChatMessage? {
+        val cleanMessageType = messageType.trim().lowercase(Locale.ROOT)
+        val voucherCard = if (cleanMessageType == "image") report?.toVoucherCard() else null
+        val textContent = if (cleanMessageType == "text" || cleanMessageType == "direct" || cleanMessageType == "status_change") {
+            content
+        } else {
+            null
+        }
+        if (cleanMessageType == "image" && voucherCard == null) return null
+        if (cleanMessageType != "image" && textContent.isNullOrBlank()) return null
+
         return ChatMessage(
             id = id,
             from = senderType.toMessageFrom(),
-            text = content,
+            text = textContent,
+            voucherCard = voucherCard,
             date = createdAt.toFormattedBackendDate("dd/MM/yyyy") ?: todayDate(),
             time = createdAt.toFormattedBackendDate("HH:mm") ?: currentTime(),
             status = MessageStatus.DELIVERED
+        )
+    }
+
+    private fun Report.toVoucherCard(): VoucherCard {
+        return VoucherCard(
+            solicitudId = solicitudNum,
+            voucherName = voucherName ?: "Voucher_${solicitudNum.replace("#", "")}.jpg",
+            imageUrl = imageUrl.orEmpty(),
+            empresa = empresa,
+            banco = banco,
+            cliente = cliente,
+            status = status
         )
     }
 

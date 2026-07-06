@@ -25,18 +25,23 @@ interface DepositApi {
     @GET("api/v1/deposits/{id}")
     suspend fun getDeposit(@Path("id") id: String): Response<DepositResponseDto>
 
-    @GET("api/v1/deposits/bancos")
+    @GET("api/v1/masters/bancos")
     suspend fun getBanks(): Response<List<BancoResponseDto>>
 
-    @GET("api/v1/deposits/empresas")
+    @GET("api/v1/masters/empresas")
     suspend fun getCompanies(): Response<List<EmpresaResponseDto>>
 
     @Multipart
-    @POST("api/v1/deposits/")
+    @POST("api/v1/deposits")
     suspend fun createDeposit(
         @Part("Cliente") cliente: RequestBody?,
         @Part("EmpresaId") empresaId: RequestBody?,
         @Part("BancoId") bancoId: RequestBody?,
         @Part("ImagenBase64") imagenBase64: RequestBody
     ): Response<DepositCreateResponseDto>
+
+    @POST("api/v1/deposits/batch")
+    suspend fun createDepositsBatch(
+        @retrofit2.http.Body request: BatchDepositsRequestDto
+    ): Response<BatchDepositsResponseDto>
 }
