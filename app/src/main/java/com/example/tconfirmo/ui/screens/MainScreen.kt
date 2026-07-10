@@ -120,12 +120,19 @@ fun MainScreen(
     val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
     val chatRepository = remember { ChatRepository() }
     var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
+    var chatWallpaper by remember { mutableStateOf(loadChatWallpaper(context)) }
     var showRegisterSheet by remember { mutableStateOf(false) }
     var registerSharedVoucherUriStrings by rememberSaveable {
         mutableStateOf(loadPendingSharedVoucherUriStrings(context))
     }
     var registerInitialDrafts by remember { mutableStateOf<List<DepositDraft>>(emptyList()) }
     var registerResetKey by remember { mutableStateOf(0) }
+    // FIX: guarda contra doble envio real del mismo lote de vouchers (ver
+    // bloque onSubmit mas abajo). Sin esto, si el LaunchedEffect de
+    // RegisterSheet que dispara onSubmit se re-ejecuta por cualquier motivo
+    // (recomposicion, reset de estado, etc.) se crean depositos duplicados
+    // en el backend con datos identicos.
+    var isSubmittingDeposit by remember { mutableStateOf(false) }
     var reportDaysBack by rememberSaveable { mutableStateOf(loadSavedReportDaysBack(context)) }
     var isLoadingReports by remember { mutableStateOf(false) }
     var reportLoadingMessage by remember { mutableStateOf("") }
@@ -144,6 +151,24 @@ fun MainScreen(
             messages = mergeChatMessages(messages, historyMessages)
         }
         isLoadingReports = false
+    }
+
+    // FIX: la tarjeta de voucher que ya se pinto en el chat quedaba "congelada"
+    // con el estado (Pendiente/Validado/Rechazado) que tenia al momento de
+    // mostrarse — los eventos de tiempo real (DepositStatusChanged, etc.) solo
+    // actualizaban "reports", nunca los ChatMessage ya renderizados. Esto
+    // propaga el nuevo estado tambien a la tarjeta del chat, buscandola por
+    // solicitudId (unico por deposito).
+    fun updateVoucherCardStatus(solicitudNum: String?, newStatus: ReportStatus) {
+        if (solicitudNum == null) return
+        messages = messages.map { message ->
+            val card = message.voucherCard
+            if (card != null && card.solicitudId == solicitudNum && card.status != newStatus) {
+                message.copy(voucherCard = card.copy(status = newStatus))
+            } else {
+                message
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -169,13 +194,34 @@ fun MainScreen(
                         return@collect
                     }
                     val shouldShowMessage = content.isNotBlank() || voucherCard != null
-                    if (shouldShowMessage && messages.none { it.id == messageId }) {
+                    // FIX duplicado: al subir un voucher se agrega una tarjeta "optimista"
+                    // con un id generado en el cliente (ver bloque onSubmit mas abajo) y
+                    // ADEMAS se registra el mensaje en el backend (chatRepository.
+                    // registerDepositMessage), que dispara este mismo evento en tiempo real
+                    // con el id real del servidor. Como los ids nunca coinciden, el chequeo
+                    // "messages.none { it.id == messageId }" nunca detectaba el duplicado.
+                    // Para mensajes de tipo "image" (tarjetas de voucher), el solicitudId
+                    // (p.ej. "#003") es unico por deposito, asi que se usa como llave real
+                    // de deduplicacion en vez del id del mensaje.
+                    val isDuplicateVoucherCard = voucherCard != null &&
+                        messages.any { it.voucherCard?.solicitudId == voucherCard.solicitudId }
+                    if (shouldShowMessage && messages.none { it.id == messageId } && !isDuplicateVoucherCard) {
                         val createdAt = realtimeMessage?.createdAt ?: event.createdAt
+                        // FIX: vincula el mensaje del sistema/bot al voucher que le dio
+                        // origen (mismo criterio que ChatRepository.toChatMessage): solo
+                        // los mensajes que NO son la propia tarjeta de imagen llevan
+                        // replyToSolicitudId, resuelto contra el deposito reportado.
+                        val replyToSolicitudId = if (messageType != "image") {
+                            reports.firstOrNull { it.id == depositId }?.solicitudNum
+                        } else {
+                            null
+                        }
                         messages = messages + ChatMessage(
                             id = messageId,
                             from = realtimeMessage?.senderType.toMessageFrom(),
                             text = if (messageType == "image") null else content,
                             voucherCard = voucherCard,
+                            replyToSolicitudId = replyToSolicitudId,
                             date = createdAt.toChatDate(),
                             time = createdAt.toChatTime(),
                             status = MessageStatus.DELIVERED
@@ -185,6 +231,7 @@ fun MainScreen(
                 is RealtimeEvent.DepositStatusChanged -> {
                     val depositId = event.depositId ?: return@collect
                     val status = (event.status ?: event.deposit?.estado).toReportStatus() ?: return@collect
+                    val solicitudNum = reports.firstOrNull { it.id == depositId }?.solicitudNum
                     reports = reports.map { report ->
                         if (report.id == depositId) {
                             report.copy(
@@ -196,14 +243,17 @@ fun MainScreen(
                             report
                         }
                     }
+                    updateVoucherCardStatus(solicitudNum, status)
                     refreshReportsFromApi()
                 }
                 is RealtimeEvent.DepositUpdated -> {
                     val depositId = event.depositId ?: return@collect
+                    val solicitudNum = reports.firstOrNull { it.id == depositId }?.solicitudNum
+                    val newStatus = event.deposit?.estado.toReportStatus()
                     reports = reports.map { report ->
                         if (report.id == depositId) {
                             report.copy(
-                                status = event.deposit?.estado.toReportStatus() ?: report.status,
+                                status = newStatus ?: report.status,
                                 mensajeValidacion = event.deposit?.motivoRechazo ?: report.mensajeValidacion,
                                 imageUrl = event.deposit?.imagenVoucher ?: report.imageUrl
                             )
@@ -211,11 +261,14 @@ fun MainScreen(
                             report
                         }
                     }
+                    if (newStatus != null) updateVoucherCardStatus(solicitudNum, newStatus)
                     refreshReportsFromApi()
                 }
                 is RealtimeEvent.DepositNotification -> {
                     val depositId = event.depositId ?: return@collect
                     val status = event.status.toReportStatus()
+                    val solicitudNum = reports.firstOrNull { it.id == depositId }?.solicitudNum
+                    if (status != null) updateVoucherCardStatus(solicitudNum, status)
                     reports = reports.map { report ->
                         if (report.id == depositId) {
                             report.copy(
@@ -483,6 +536,8 @@ fun MainScreen(
                         }
                     )
                     1 -> ChatTab(
+                        wallpaper = chatWallpaper,
+                        reports = reports,
                         messages = messages,
                         onBack = { selectedTab = 0 },
                         onOpenRegister = {
@@ -515,6 +570,8 @@ fun MainScreen(
                     )
                     2 -> NoticesTab()
                     3 -> SettingsTab(
+                        currentWallpaper = chatWallpaper,
+                        onWallpaperChange = { chatWallpaper = it; saveChatWallpaper(context, it) },
                         onCheckForUpdates = onCheckForUpdates,
                         onLogout = onLogout
                     )
@@ -538,7 +595,19 @@ fun MainScreen(
                 registerInitialDrafts = registerInitialDrafts.drop(consumed)
             },
             onSubmit = { solicitudes ->
+                // FIX duplicados: el LaunchedEffect de RegisterSheet que llama a
+                // onSubmit(pendingSubmit) puede volver a ejecutarse (recomposicion,
+                // reset de "mode"/"pendingSubmit" via resetKey, etc.) y disparar
+                // este bloque una segunda vez para el MISMO lote, creando
+                // depositos duplicados en el backend con datos identicos. Este
+                // guard hace que, mientras un envio siga en curso, cualquier
+                // reentrada se ignore por completo.
+                if (isSubmittingDeposit) {
+                    return@RegisterSheet
+                }
+                isSubmittingDeposit = true
                 registerScope.launch {
+                  try {
                     val errors = mutableListOf<String>()
                     val submitted = solicitudes.mapNotNull { solicitud ->
                         when (val result = depositRepository.createDepositDetailed(solicitud)) {
@@ -570,27 +639,18 @@ fun MainScreen(
                     val time = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                     val date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
                     val chatFailures = mutableListOf<String>()
-                    val newMessages = submitted.mapIndexed { index, (solicitud, _) ->
-                        val sid = "#${(reports.size + index + 1).toString().padStart(3, '0')}"
-                        val voucherName = voucherFileName(sid, solicitud.imageUri)
-                        val card = VoucherCard(
-                            solicitudId = sid,
-                            voucherName = voucherName,
-                            imageUrl = solicitud.imageUri,
-                            empresa = solicitud.empresa,
-                            banco = solicitud.banco,
-                            cliente = solicitud.cliente,
-                            status = ReportStatus.PENDING
-                        )
-                        ChatMessage(
-                            id = UUID.randomUUID().toString(),
-                            from = MessageFrom.USER,
-                            voucherCard = card,
-                            date = date,
-                            time = time,
-                            status = MessageStatus.SENT
-                        )
-                    }
+                    // FIX duplicados: ya NO se pinta una tarjeta "optimista" aqui. Antes
+                    // se agregaba un ChatMessage local con un id generado en el cliente,
+                    // y por separado llegaba el eco real del backend (via SignalR, tras
+                    // registerDepositMessage) con el id del servidor — como nunca
+                    // coincidian, distintas condiciones de carrera terminaban mostrando
+                    // la tarjeta dos veces (deduplicar por id, o incluso por
+                    // solicitudId, no cubria todos los casos, p.ej. cuando "reports"
+                    // aun no tenia el nuevo item y el evento en tiempo real caia en el
+                    // fallback de refreshReportsFromApi()). Ahora la tarjeta del voucher
+                    // se pinta UNA sola vez, cuando llega la confirmacion real del
+                    // backend (RealtimeEvent.ChatMessageCreated mas abajo, o el refresh
+                    // de historial si el evento en tiempo real no llega).
                     val newReports = submitted.mapIndexed { index, pair ->
                         val solicitud = pair.first
                         val depositId = pair.second
@@ -616,7 +676,6 @@ fun MainScreen(
                         )
                     }
 
-                    messages = messages + newMessages
                     reports = newReports + reports
                     if (chatFailures.isNotEmpty()) {
                         Toast.makeText(
@@ -631,7 +690,10 @@ fun MainScreen(
                     updatePendingSharedVouchers(emptyList())
                     registerInitialDrafts = emptyList()
                     registerResetKey += 1
-                    selectedTab = 0
+                    selectedTab = 1
+                  } finally {
+                    isSubmittingDeposit = false
+                  }
                 }
             }
         )
@@ -640,6 +702,8 @@ fun MainScreen(
 
 @Composable
 fun ChatTab(
+    wallpaper: String = "llanta",
+    reports: List<Report> = emptyList(),
     messages: List<ChatMessage>,
     onBack: () -> Unit,
     onOpenRegister: () -> Unit,
@@ -801,12 +865,21 @@ fun ChatTab(
 
         // Messages List
         Box(modifier = Modifier.weight(1f)) {
-            Image(
-                painter = painterResource(id = R.drawable.llanta),
-                contentDescription = null,
-                modifier = Modifier.matchParentSize(),
-                contentScale = ContentScale.Crop
-            )
+            if (wallpaper == "llanta") {
+                Image(
+                    painter = painterResource(id = R.drawable.llanta),
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else if (wallpaper.startsWith("content://")) {
+                coil.compose.AsyncImage(
+                    model = wallpaper,
+                    contentDescription = null,
+                    modifier = Modifier.matchParentSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -849,8 +922,12 @@ fun ChatTab(
                         item(key = msg.id) {
                             MessageBubble(
                                 message = msg,
+                                reports = reports,
                                 isSearchMatch = index == activeMatchIndex,
-                                onVoucherClick = { openedVoucher = it }
+                                onVoucherClick = { openedVoucher = it },
+                                onReplyClick = { solicitudId ->
+                                    openedVoucher = reports.find { it.solicitudNum == solicitudId }?.toVoucherCard()
+                                }
                             )
                         }
                     }
@@ -2394,6 +2471,8 @@ private fun String.csvCell(): String = "\"${replace("\"", "\"\"")}\""
 
 @Composable
 fun SettingsTab(
+    currentWallpaper: String = "llanta",
+    onWallpaperChange: (String) -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
@@ -2413,7 +2492,66 @@ fun SettingsTab(
     var empresaName by remember { mutableStateOf("") }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
+    var showWallpaperDialog by remember { mutableStateOf(false) }
+    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri: android.net.Uri? ->
+        if (uri != null) {
+            onWallpaperChange(uri.toString())
+            showWallpaperDialog = false
+        }
+    }
 
+    if (showWallpaperDialog) {
+        AlertDialog(
+            onDismissRequest = { showWallpaperDialog = false },
+            title = { Text("Fondo del chat", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    val options = listOf(
+                        "llanta" to "Textura Llantas (Predeterminado)",
+                        "default" to "Blanco humo",
+                        "dark" to "Oscuro carbón",
+                        "green_soft" to "Verde suave",
+                        "blue_night" to "Azul noche",
+                        "sand" to "Arena cálida",
+                        "slate" to "Pizarra moderna"
+                    )
+                    options.forEach { (id, name) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    onWallpaperChange(id)
+                                    showWallpaperDialog = false
+                                }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = currentWallpaper == id,
+                                onClick = null,
+                                colors = RadioButtonDefaults.colors(selectedColor = PrimaryGreen)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(name)
+                        }
+                    }
+                    TextButton(
+                        onClick = { galleryLauncher.launch("image/*") },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    ) {
+                        Text("Elegir foto de la galería...", color = PrimaryDarkGreen)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showWallpaperDialog = false }) {
+                    Text("Cerrar", color = PrimaryGreen)
+                }
+            }
+        )
+    }
     LaunchedEffect(empresaId) {
         empresaName = depositRepository
             .getCompanies()
@@ -2507,6 +2645,26 @@ fun SettingsTab(
             }
 
             Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(18.dp))
+            Text("APARIENCIA", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Surface(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = Color.White,
+                border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
+                shadowElevation = 4.dp
+            ) {
+                Column {
+                    SettingsActionRow(
+                        Icons.Default.Palette,
+                        "Fondo del chat",
+                        "Personaliza el fondo de tus conversaciones",
+                        onClick = { showWallpaperDialog = true }
+                    )
+                }
+            }
             Text("APLICACION", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -2951,6 +3109,18 @@ private fun sharedVoucherExtension(uri: Uri, mimeType: String?): String {
     val mimeExtension = mimeType?.let { MimeTypeMap.getSingleton().getExtensionFromMimeType(it) }
     if (!mimeExtension.isNullOrBlank()) return if (mimeExtension == "jpeg") "jpg" else mimeExtension
     return voucherExtension(uri.toString())
+}
+
+private const val KEY_CHAT_WALLPAPER = "chat_wallpaper"
+
+private fun loadChatWallpaper(context: Context): String {
+    val prefs = context.getSharedPreferences(REGISTER_SESSION_PREFS, Context.MODE_PRIVATE)
+    return prefs.getString(KEY_CHAT_WALLPAPER, "llanta") ?: "llanta"
+}
+
+private fun saveChatWallpaper(context: Context, wallpaper: String) {
+    val prefs = context.getSharedPreferences(REGISTER_SESSION_PREFS, Context.MODE_PRIVATE)
+    prefs.edit().putString(KEY_CHAT_WALLPAPER, wallpaper).apply()
 }
 
 private fun loadPendingSharedVoucherUriStrings(context: Context): List<String> {

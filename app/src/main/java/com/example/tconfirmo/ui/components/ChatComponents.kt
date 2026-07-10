@@ -39,6 +39,7 @@ import coil.compose.AsyncImage
 import com.example.tconfirmo.R
 import com.example.tconfirmo.data.ChatMessage
 import com.example.tconfirmo.data.MessageFrom
+import com.example.tconfirmo.data.Report
 import com.example.tconfirmo.data.ReportStatus
 import com.example.tconfirmo.data.VoucherCard
 import com.example.tconfirmo.ui.theme.PrimaryDarkGreen
@@ -315,8 +316,10 @@ fun StructuredBotBubble(data: StructuredBotData, time: String) {
 @Composable
 fun MessageBubble(
     message: ChatMessage,
+    reports: List<Report> = emptyList(),
     isSearchMatch: Boolean = false,
-    onVoucherClick: (VoucherCard) -> Unit = {}
+    onVoucherClick: (VoucherCard) -> Unit = {},
+    onReplyClick: (String) -> Unit = {}
 ) {
     val isUser = message.from == MessageFrom.USER
     val bubbleShape = if (isUser) {
@@ -369,6 +372,51 @@ fun MessageBubble(
                     modifier = Modifier.widthIn(max = 280.dp)
                 ) {
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                        // Reply quote: si el mensaje del bot referencia un voucher,
+                        // muestra una etiqueta al estilo WhatsApp con el nÃºmero de solicitud.
+                        if (!isUser && message.replyToSolicitudId != null) {
+                            Surface(
+                                color = PrimaryDarkGreen.copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp)
+                                    .clickable { onReplyClick(message.replyToSolicitudId) }
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(3.dp)
+                                            .height(28.dp)
+                                            .background(PrimaryGreen, RoundedCornerShape(2.dp))
+                                    )
+                                    Icon(
+                                        Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = PrimaryGreen,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(
+                                        // FIX: mostrar el nombre del cliente en vez del
+                                        // numero interno de solicitud (mas util/reconocible
+                                        // para el vendedor); si por algun motivo no se
+                                        // encuentra el reporte (aun no llego el refresh),
+                                        // cae de vuelta al numero de solicitud.
+                                        text = reports.firstOrNull { it.solicitudNum == message.replyToSolicitudId }
+                                            ?.cliente
+                                            ?.takeIf { it.isNotBlank() }
+                                            ?: "Solicitud ${message.replyToSolicitudId}",
+                                        color = PrimaryDarkGreen,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = message.text ?: "",
                             color = if (isUser) Color.White else Color.Black,
@@ -416,7 +464,7 @@ fun MessageBubblePreview() {
                 message = ChatMessage(
                     id = "1",
                     from = MessageFrom.USER,
-                    text = "Hola, envío el voucher del depósito.",
+                    text = "Hola, envï¿½o el voucher del depï¿½sito.",
                     time = "14:20",
                     status = MessageStatus.READ
                 )
@@ -426,7 +474,7 @@ fun MessageBubblePreview() {
                 message = ChatMessage(
                     id = "2",
                     from = MessageFrom.BOT,
-                    text = "Recibido. Estamos validando la información.",
+                    text = "Recibido. Estamos validando la informaciï¿½n.",
                     time = "14:21"
                 )
             )
@@ -455,7 +503,7 @@ fun MessageBubblePreview() {
                     from = MessageFrom.BOT,
                     structuredData = StructuredBotData(
                         type = BotMessageType.CONFIRMATION,
-                        title = "DEPÓSITO CONFIRMADO",
+                        title = "DEPï¿½SITO CONFIRMADO",
                         rows = listOf(
                             "Empresa" to "",
                             "Banco" to "BCP",

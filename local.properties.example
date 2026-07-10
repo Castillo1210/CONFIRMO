@@ -1,0 +1,23 @@
+# Plantilla de configuración local para CONFIRMO (Android).
+# Copia este archivo a "local.properties" (que ya está en .gitignore y NO se
+# versiona) y ajusta los valores según el entorno contra el que quieras compilar.
+#
+# local.properties también debe contener "sdk.dir", que Android Studio agrega
+# automáticamente la primera vez que abres el proyecto — no lo borres.
+
+# URL base de la API de api-bridge. Debe terminar en "/".
+# Entorno actual (backend ya migrado a HTTPS, Fase 1 del plan de mejoras):
+API_BASE_URL=https://n5vqr8.tyresperu.com/
+
+# URL del hub de SignalR (tiempo real). Debe apuntar al mismo host que
+# API_BASE_URL, con el sufijo /hubs/deposits.
+# IMPORTANTE: debe ser https:// (NO wss://) — el cliente de SignalR hace una
+# negociación HTTP normal antes de subir a WebSocket; pasarle wss:// directo
+# rompe esa negociación inicial.
+SIGNALR_HUB_URL=https://n5vqr8.tyresperu.com/hubs/deposits
+
+# Nota sobre pruebas: si compilas/pruebas conectado a una red con inspección
+# SSL corporativa (proxy que intercepta HTTPS), los certificados presentados
+# no serán de confianza y las llamadas a la API fallarán. Prueba siempre
+# usando datos móviles del celular (no la wifi de la red corporativa) para
+# evitar ese problema — no requiere ningún cambio de configuración.

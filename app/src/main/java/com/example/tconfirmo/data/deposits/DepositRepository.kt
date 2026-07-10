@@ -195,7 +195,7 @@ class DepositRepository(
 
     private fun String.toReportStatus(): ReportStatus {
         return when (trim().lowercase(Locale.ROOT)) {
-            "confirmado", "validado", "procesado" -> ReportStatus.VALIDATED
+            "confirmado", "validado" -> ReportStatus.VALIDATED
             "rechazado" -> ReportStatus.REJECTED
             else -> ReportStatus.PENDING
         }

@@ -47,7 +47,15 @@ class MainActivity : ComponentActivity() {
         appUpdateManager = AppUpdateManager(applicationContext)
         sessionManager = SessionManager(applicationContext)
         ApiClient.initialize(sessionManager)
-        realtimeClient = RealtimeClient(sessionManager)
+        realtimeClient = RealtimeClient(
+            sessionManager = sessionManager,
+            refreshToken = {
+                AuthRepository(
+                    authApi = ApiClient.authApi,
+                    sessionManager = sessionManager
+                ).refreshToken()
+            }
+        )
         fcmTokenProvider = FcmTokenProvider(applicationContext)
         isLoggedIn = sessionManager.isLoggedIn()
         if (isLoggedIn) {

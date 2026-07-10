@@ -1,4 +1,4 @@
-package com.example.tconfirmo.data.chat
+﻿package com.example.tconfirmo.data.chat
 
 import com.example.tconfirmo.data.ChatMessage
 import com.example.tconfirmo.data.DepositDraft
@@ -83,6 +83,7 @@ class ChatRepository(
     private fun ChatMessageResponseDto.toChatMessage(report: Report? = null): ChatMessage? {
         val cleanMessageType = messageType.trim().lowercase(Locale.ROOT)
         val voucherCard = if (cleanMessageType == "image") report?.toVoucherCard() else null
+        val replyToSolicitudId = if (cleanMessageType != "image") report?.solicitudNum else null
         val textContent = if (cleanMessageType == "text" || cleanMessageType == "direct" || cleanMessageType == "status_change") {
             content
         } else {
@@ -96,6 +97,7 @@ class ChatRepository(
             from = senderType.toMessageFrom(),
             text = textContent,
             voucherCard = voucherCard,
+            replyToSolicitudId = replyToSolicitudId,
             date = createdAt.toFormattedBackendDate("dd/MM/yyyy") ?: todayDate(),
             time = createdAt.toFormattedBackendDate("HH:mm") ?: currentTime(),
             status = MessageStatus.DELIVERED

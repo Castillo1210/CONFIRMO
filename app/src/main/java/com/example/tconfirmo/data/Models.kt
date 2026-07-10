@@ -30,6 +30,7 @@ data class ChatMessage(
     val imageUrl: String? = null,
     val voucherCard: VoucherCard? = null,
     val structuredData: StructuredBotData? = null, // Para mensajes de confirmación/rechazo
+    val replyToSolicitudId: String? = null,        // Vincula la respuesta del bot al voucher (#001, #002…)
     val date: String = "",
     val time: String,
     val status: MessageStatus? = null

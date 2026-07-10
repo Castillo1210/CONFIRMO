@@ -68,6 +68,28 @@ class AuthRepository(
         }
     }
 
+    /**
+     * Intenta renovar el accessToken usando el refreshToken almacenado en sesión.
+     * @return true si la renovación fue exitosa y el nuevo token ya está en SessionManager;
+     *         false si el refreshToken también expiró (se debe forzar logout).
+     */
+    suspend fun refreshToken(): Boolean {
+        val storedRefreshToken = sessionManager.getRefreshToken() ?: return false
+        return try {
+            val response = authApi.refresh(RefreshRequestDto(storedRefreshToken))
+            if (response.isSuccessful) {
+                val body = response.body() ?: return false
+                sessionManager.updateAccessToken(body.accessToken, body.expiresInSeconds)
+                true
+            } else {
+                // 401 aquí significa que el refreshToken también expiró.
+                false
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     suspend fun updateFcmToken(token: String): Boolean {
         if (token.isBlank()) return false
         return runCatching {

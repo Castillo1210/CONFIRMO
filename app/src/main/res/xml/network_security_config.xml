@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Configuración de seguridad de red por defecto (usada por release y
+    cualquier build type que no tenga su propia versión en src/<buildType>/).
+
+    Mantiene el comportamiento actual (permite tráfico HTTP en texto plano,
+    igual que "usesCleartextTraffic=true" en el manifest) hasta que el
+    backend quede completamente migrado a HTTPS (Fase 1 del plan de
+    mejoras). Cuando ese corte esté confirmado, cambiar
+    cleartextTrafficPermitted a "false" aquí y retirar
+    usesCleartextTraffic del AndroidManifest.xml.
+
+    Solo confía en certificados del sistema — un build de producción NUNCA
+    debe confiar en certificados instalados por el usuario.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

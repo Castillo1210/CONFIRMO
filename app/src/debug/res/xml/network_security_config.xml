@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Config de debug restaurada al mismo comportamiento que main/release
+    (solo certificados del sistema). El "certificates src=user" que se usó
+    temporalmente para probar contra el backend HTTPS desde la red
+    corporativa (con inspección SSL) ya no es necesario: las pruebas ahora
+    se hacen con datos móviles del celular, que no pasan por esa red, así
+    que el certificado real de Let's Encrypt ya es de confianza sin
+    necesidad de este permiso especial.
+
+    Este archivo se deja igual que el de src/main/ por si a futuro se
+    necesita volver a agregar la excepción de "user" certs — ver el
+    historial de esta conversación para el contexto completo.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

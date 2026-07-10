@@ -1,8 +1,26 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.google.services)
 }
+
+// Configuración de entorno leída desde local.properties (no versionado).
+// Ver local.properties.example para la plantilla y los valores esperados.
+// Los defaults de abajo solo existen como red de seguridad si alguien
+// compila sin haber configurado local.properties; el valor real de cada
+// desarrollador/entorno debe vivir únicamente en ese archivo.
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        load(FileInputStream(localPropertiesFile))
+    }
+}
+
+fun envConfig(key: String, default: String): String =
+    (localProperties.getProperty(key) ?: System.getenv(key) ?: default)
 
 android {
     namespace = "com.example.tconfirmo"
@@ -25,15 +43,17 @@ android {
             "UPDATE_METADATA_URL",
             "\"https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/version.json\""
         )
+        // Ya no hay URLs hardcodeadas aquí: ambos valores se leen de
+        // local.properties (no versionado). Ver local.properties.example.
         buildConfigField(
             "String",
             "API_BASE_URL",
-            "\"http://34.44.185.224:8080/\""
+            "\"${envConfig("API_BASE_URL", "https://n5vqr8.tyresperu.com/")}\""
         )
         buildConfigField(
             "String",
             "SIGNALR_HUB_URL",
-            "\"http://34.44.185.224:8080/hubs/deposits\""
+            "\"${envConfig("SIGNALR_HUB_URL", "https://n5vqr8.tyresperu.com/hubs/deposits")}\""
         )
     }
 
@@ -57,6 +77,7 @@ android {
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
+
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

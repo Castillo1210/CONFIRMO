@@ -8,6 +8,7 @@ import com.microsoft.signalr.HubConnectionBuilder
 import io.reactivex.rxjava3.core.Single
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,6 +21,12 @@ import kotlinx.coroutines.withContext
 
 class RealtimeClient(
     private val sessionManager: SessionManager,
+    /**
+     * Lambda que intenta renovar el accessToken.
+     * Retorna true si la renovación fue exitosa; false si la sesión expiró
+     * completamente y el usuario debe re-autenticarse.
+     */
+    private val refreshToken: suspend () -> Boolean = { false },
     private val hubUrl: String = BuildConfig.SIGNALR_HUB_URL
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -27,9 +34,37 @@ class RealtimeClient(
     private val gson = Gson()
     private var hubConnection: HubConnection? = null
     private var reconnectEnabled = false
+    // Tracks the pending reconnect coroutine so it can be cancelled on explicit disconnect.
+    private var reconnectJob: Job? = null
 
     private val _events = MutableSharedFlow<RealtimeEvent>(extraBufferCapacity = 64)
     val events: SharedFlow<RealtimeEvent> = _events.asSharedFlow()
+
+    // Deduplicación de ChatMessageCreated: el backend puede disparar el mismo
+    // evento por dos canales distintos (método directo "ChatMessageCreated" y
+    // envoltorio genérico "ReceiveEvent"). Este mapa evita emitir el mismo
+    // depósito más de una vez dentro de una ventana de 3 segundos.
+    private val recentChatEventsByDeposit = mutableMapOf<String, Long>()
+    private val CHAT_DEDUP_WINDOW_MS = 3_000L
+
+    private fun tryEmitChatMessageCreated(event: RealtimeEvent.ChatMessageCreated) {
+        val depositId = event.depositId
+        if (depositId == null) {
+            // Sin depositId no podemos deduplicar; lo emitimos siempre.
+            _events.tryEmit(event)
+            return
+        }
+        val now = System.currentTimeMillis()
+        val lastSeen = recentChatEventsByDeposit[depositId]
+        if (lastSeen != null && (now - lastSeen) < CHAT_DEDUP_WINDOW_MS) {
+            // Ya se emitió este depósito dentro de la ventana → descartar duplicado.
+            return
+        }
+        recentChatEventsByDeposit[depositId] = now
+        // Limpiar entradas antiguas para no crecer indefinidamente.
+        recentChatEventsByDeposit.entries.removeAll { now - it.value > CHAT_DEDUP_WINDOW_MS }
+        _events.tryEmit(event)
+    }
 
     suspend fun connect() {
         mutex.withLock {
@@ -37,11 +72,24 @@ class RealtimeClient(
             if (token.isNullOrBlank()) return
             if (token == "mock-access-token") return
 
+            // Cancel any pending reconnect so it doesn't race with this explicit connect.
+            reconnectJob?.cancel()
+            reconnectJob = null
             reconnectEnabled = true
-            if (hubConnection != null) return
+
+            // If a stale connection exists (e.g. after logout/login), tear it down first
+            // so we always build a fresh connection that picks up the new token.
+            hubConnection?.let { stale ->
+                runCatching {
+                    withContext(Dispatchers.IO) { stale.stop().blockingAwait() }
+                }
+                hubConnection = null
+            }
 
             val connection = HubConnectionBuilder
                 .create(hubUrl)
+                // Single.defer ensures the token is read from SharedPreferences
+                // on every negotiation, never capturing a stale value at build time.
                 .withAccessTokenProvider(Single.defer {
                     Single.just(sessionManager.getAccessToken().orEmpty())
                 })
@@ -50,21 +98,53 @@ class RealtimeClient(
             registerHandlers(connection)
             hubConnection = connection
 
-            runCatching {
+            try {
                 withContext(Dispatchers.IO) { connection.start().blockingAwait() }
-            }.onSuccess {
                 _events.tryEmit(RealtimeEvent.ConnectionChanged(connected = true))
-            }.onFailure { error ->
+            } catch (error: Exception) {
                 hubConnection = null
-                _events.tryEmit(RealtimeEvent.ConnectionChanged(connected = false, reason = error.message))
-                scheduleReconnect()
+                val is401 = error.message?.contains("401") == true
+                    || error.message?.contains("Unauthorized", ignoreCase = true) == true
+                if (is401) {
+                    // El token expiró mientras SignalR intentaba el negotiate.
+                    // Intentar renovar y reconectar automáticamente.
+                    val refreshed = refreshToken()
+                    if (refreshed) {
+                        _events.tryEmit(
+                            RealtimeEvent.ConnectionChanged(
+                                connected = false,
+                                reason = "Token renovado, reconectando..."
+                            )
+                        )
+                        scheduleReconnect(delayMs = 500L)
+                    } else {
+                        // El refreshToken también expiró — detener reconexiones.
+                        reconnectEnabled = false
+                        _events.tryEmit(
+                            RealtimeEvent.ConnectionChanged(
+                                connected = false,
+                                reason = "Sesion expirada. Inicia sesion nuevamente."
+                            )
+                        )
+                    }
+                } else {
+                    _events.tryEmit(
+                        RealtimeEvent.ConnectionChanged(connected = false, reason = error.message)
+                    )
+                    scheduleReconnect()
+                }
             }
         }
     }
 
     suspend fun disconnect() {
         mutex.withLock {
+            // Disable auto-reconnect BEFORE stopping; the onClosed callback
+            // will see reconnectEnabled == false and skip scheduleReconnect().
             reconnectEnabled = false
+            // Cancel any in-flight reconnect coroutine immediately.
+            reconnectJob?.cancel()
+            reconnectJob = null
             val connection = hubConnection
             hubConnection = null
             runCatching {
@@ -93,7 +173,7 @@ class RealtimeClient(
         connection.on(
             "ChatMessageCreated",
             { event: RealtimeChatMessageCreatedDto ->
-                _events.tryEmit(
+                tryEmitChatMessageCreated(
                     RealtimeEvent.ChatMessageCreated(
                         depositId = event.depositId,
                         message = event.message,
@@ -134,7 +214,7 @@ class RealtimeClient(
         connection.on(
             "ChatMessage",
             { message: RealtimeChatMessageDto ->
-                _events.tryEmit(
+                tryEmitChatMessageCreated(
                     RealtimeEvent.ChatMessageCreated(
                         depositId = message.depositId,
                         message = message,
@@ -244,16 +324,19 @@ class RealtimeClient(
             BridgeValidationErrorsDto::class.java
         )
         connection.onClosed { error ->
+            // Snapshot reconnectEnabled before any state change so we don't
+            // race with a concurrent disconnect() call that sets it to false.
+            val shouldReconnect = reconnectEnabled
             hubConnection = null
             _events.tryEmit(RealtimeEvent.ConnectionChanged(connected = false, reason = error?.message))
-            scheduleReconnect()
+            if (shouldReconnect) scheduleReconnect()
         }
     }
 
     private fun emitEnvelope(payload: String) {
         val envelope = runCatching { gson.fromJson(payload, RealtimeEnvelopeDto::class.java) }.getOrNull()
         when (envelope?.type) {
-            "chat.message.created" -> _events.tryEmit(
+            "chat.message.created" -> tryEmitChatMessageCreated(
                 RealtimeEvent.ChatMessageCreated(
                     depositId = envelope.depositId,
                     message = envelope.message,
@@ -296,10 +379,12 @@ class RealtimeClient(
         )
     }
 
-    private fun scheduleReconnect() {
+    private fun scheduleReconnect(delayMs: Long = RECONNECT_DELAY_MS) {
         if (!reconnectEnabled) return
-        scope.launch {
-            delay(RECONNECT_DELAY_MS)
+        // Store the Job so disconnect() can cancel it before it fires.
+        reconnectJob = scope.launch {
+            if (delayMs > 0L) delay(delayMs)
+            reconnectJob = null
             connect()
         }
     }

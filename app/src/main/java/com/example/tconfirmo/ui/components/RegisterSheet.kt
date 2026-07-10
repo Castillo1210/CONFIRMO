@@ -135,6 +135,12 @@ fun RegisterSheet(
     var draftCliente by remember { mutableStateOf("") }
     var editingItemId by remember { mutableStateOf<String?>(null) }
     var pendingSubmit by remember { mutableStateOf<List<DepositDraft>>(emptyList()) }
+    // FIX duplicados: recuerda el ULTIMO lote ya enviado a onSubmit, para que
+    // si el LaunchedEffect de mas abajo se vuelve a ejecutar (por recomposicion,
+    // o porque resetSession() cambia "mode"/"pendingSubmit" de vuelta y algo
+    // dispara el efecto otra vez) no se vuelva a llamar onSubmit con el mismo
+    // contenido, evitando depositos duplicados en el backend.
+    var lastSubmittedBatch by remember { mutableStateOf<List<DepositDraft>?>(null) }
     var pickerTarget by remember { mutableStateOf<PickerTarget?>(null) }
     var processedInitialVoucherCount by remember { mutableStateOf(0) }
 
@@ -162,6 +168,7 @@ fun RegisterSheet(
     fun resetSession() {
         items = emptyList()
         pendingSubmit = emptyList()
+        lastSubmittedBatch = null
         pickerTarget = null
         processedInitialVoucherCount = 0
         mode = RegisterMode.Form
@@ -321,8 +328,9 @@ fun RegisterSheet(
     }
 
     LaunchedEffect(mode, pendingSubmit) {
-        if (mode == RegisterMode.Success && pendingSubmit.isNotEmpty()) {
+        if (mode == RegisterMode.Success && pendingSubmit.isNotEmpty() && pendingSubmit != lastSubmittedBatch) {
             kotlinx.coroutines.delay(1200)
+            lastSubmittedBatch = pendingSubmit
             onSubmit(pendingSubmit)
         }
     }
