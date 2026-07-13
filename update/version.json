@@ -1,8 +1,8 @@
 {
-  "versionCode": 10,
-  "versionName": "1.9",
-  "updatedAt": "2026-07-13",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.9.apk",
-  "releaseNotes": "Mejoras en la conexión con el backend",
-  "required": false
+    "versionCode":  12,
+    "versionName":  "1.11",
+    "updatedAt":  "2026-07-13",
+    "apkUrl":  "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.11.apk",
+    "releaseNotes":  "Nueva version de Confirmo con mejoras de mantenimiento y actualizacion de la app.",
+    "required":  true
 }

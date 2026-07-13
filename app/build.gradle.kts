@@ -34,8 +34,8 @@ android {
         applicationId = "com.example.tconfirmo"
         minSdk = 24
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.9"
+        versionCode = 12
+        versionName = "1.11"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
@@ -57,8 +57,27 @@ android {
         )
     }
 
+    signingConfigs {
+        // Firma de release leída desde local.properties (no versionado).
+        // Ver local.properties.example para las claves esperadas:
+        //   RELEASE_STORE_FILE, RELEASE_STORE_PASSWORD,
+        //   RELEASE_KEY_ALIAS, RELEASE_KEY_PASSWORD
+        // Solo se registra la config si RELEASE_STORE_FILE existe, para que
+        // el build siga funcionando (sin firmar) en entornos sin keystore.
+        val storeFilePath = envConfig("RELEASE_STORE_FILE", "")
+        if (storeFilePath.isNotBlank() && rootProject.file(storeFilePath).exists()) {
+            create("release") {
+                storeFile = rootProject.file(storeFilePath)
+                storePassword = envConfig("RELEASE_STORE_PASSWORD", "")
+                keyAlias = envConfig("RELEASE_KEY_ALIAS", "")
+                keyPassword = envConfig("RELEASE_KEY_PASSWORD", "")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.findByName("release")
             optimization {
                 enable = false
             }

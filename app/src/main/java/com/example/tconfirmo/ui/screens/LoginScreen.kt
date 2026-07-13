@@ -78,6 +78,7 @@ import com.example.tconfirmo.ui.theme.TConfirmoTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.view.View
+import com.example.tconfirmo.BuildConfig
 
 @Composable
 fun LoginScreen(onLoginSuccess: () -> Unit) {
@@ -443,7 +444,7 @@ private fun LoginFormSection(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "v2.4.1 - Produccion - 2026 Confirmo",
+                    text = "v${BuildConfig.VERSION_NAME} - Produccion - 2026 Confirmo",
                     fontSize = 10.sp,
                     color = Color(0xFF17265F).copy(alpha = 0.48f)
                 )

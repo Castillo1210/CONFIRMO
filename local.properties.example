@@ -16,6 +16,16 @@ API_BASE_URL=https://n5vqr8.tyresperu.com/
 # rompe esa negociación inicial.
 SIGNALR_HUB_URL=https://n5vqr8.tyresperu.com/hubs/deposits
 
+# ----------------------------------------------------------------------------
+# Firma de release (keystore). NO versionar. Sin estas claves, el APK release
+# se compila SIN firmar (no instalable). Con ellas, se firma automáticamente.
+# La ruta es relativa a la raíz del proyecto (o absoluta).
+# RELEASE_STORE_FILE=confirmo-release.jks
+# RELEASE_STORE_PASSWORD=tu_password_del_store
+# RELEASE_KEY_ALIAS=confirmo
+# RELEASE_KEY_PASSWORD=tu_password_de_la_clave
+# ----------------------------------------------------------------------------
+
 # Nota sobre pruebas: si compilas/pruebas conectado a una red con inspección
 # SSL corporativa (proxy que intercepta HTTPS), los certificados presentados
 # no serán de confianza y las llamadas a la API fallarán. Prueba siempre
