@@ -1,0 +1,510 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.2.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.2.1)" variant="fatal" version="9.2.1">
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="InvalidFragmentVersionForActivityResult"
+        message="Upgrade Fragment version to at least 1.3.0."
+        errorLine1="        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }"
+        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/example/tconfirmo/MainActivity.kt"
+            line="48"
+            column="9"/>
+    </issue>
+
+</issues>

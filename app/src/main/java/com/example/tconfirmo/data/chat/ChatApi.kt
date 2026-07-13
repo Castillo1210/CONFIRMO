@@ -20,4 +20,17 @@ interface ChatApi {
         @Path("depositId") depositId: String,
         @Body request: SendUserMessageRequestDto
     ): Response<Unit>
+
+    @GET("api/v1/chat/vendedores/{vendedorId}")
+    suspend fun getVendedorChatHistory(
+        @Path("vendedorId") vendedorId: String,
+        @Query("before") before: String? = null,
+        @Query("limit") limit: Int = 50
+    ): Response<VendedorChatHistoryResponseDto>
+
+    @POST("api/v1/chat/vendedores/{vendedorId}")
+    suspend fun sendVendedorMessage(
+        @Path("vendedorId") vendedorId: String,
+        @Body request: SendVendedorMessageRequestDto
+    ): Response<Unit>
 }

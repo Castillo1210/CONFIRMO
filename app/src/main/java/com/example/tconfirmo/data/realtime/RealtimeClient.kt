@@ -219,7 +219,8 @@ class RealtimeClient(
                         depositId = message.depositId,
                         message = message,
                         messageId = message.id,
-                        createdAt = message.createdAt
+                        createdAt = message.createdAt,
+                        vendedorId = message.vendedorId
                     )
                 )
             },

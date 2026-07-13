@@ -1,17 +1,21 @@
 package com.example.tconfirmo
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -40,6 +44,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var realtimeClient: RealtimeClient
     private lateinit var fcmTokenProvider: FcmTokenProvider
 
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -59,6 +66,7 @@ class MainActivity : ComponentActivity() {
         fcmTokenProvider = FcmTokenProvider(applicationContext)
         isLoggedIn = sessionManager.isLoggedIn()
         if (isLoggedIn) {
+            requestNotificationPermissionIfNeeded()
             lifecycleScope.launch { connectRealtimeAndRegisterFcm() }
         }
         sharedVoucherUris = intent.extractSharedVoucherUris()
@@ -71,6 +79,7 @@ class MainActivity : ComponentActivity() {
                     onSharedVouchersConsumed = { sharedVoucherUris = emptyList() },
                     onLoginSuccess = {
                         isLoggedIn = true
+                        requestNotificationPermissionIfNeeded()
                         lifecycleScope.launch { connectRealtimeAndRegisterFcm() }
                     },
                     onLogout = {
@@ -119,6 +128,17 @@ class MainActivity : ComponentActivity() {
                         UpdateUiState.Idle
                     }
                 }
+        }
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 

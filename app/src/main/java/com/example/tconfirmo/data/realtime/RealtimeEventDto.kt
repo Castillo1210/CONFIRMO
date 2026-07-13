@@ -34,6 +34,7 @@ data class RealtimeDepositUpdatedDto(
 data class RealtimeChatMessageDto(
     val id: String? = null,
     val depositId: String? = null,
+    val vendedorId: String? = null,
     val senderType: String? = null,
     val senderId: String? = null,
     val content: String? = null,
@@ -104,7 +105,8 @@ sealed interface RealtimeEvent {
         val depositId: String?,
         val message: RealtimeChatMessageDto?,
         val messageId: String?,
-        val createdAt: String?
+        val createdAt: String?,
+        val vendedorId: String? = null
     ) : RealtimeEvent
 
     data class DepositStatusChanged(

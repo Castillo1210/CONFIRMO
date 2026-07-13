@@ -32,6 +32,8 @@ class SessionManager(context: Context) {
 
     fun getAccessToken(): String? = prefs.getString(KEY_ACCESS_TOKEN, null)
 
+    fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
+
     fun getRefreshToken(): String? = prefs.getString(KEY_REFRESH_TOKEN, null)
 
     fun getEmpresaId(): String? = prefs.getString(KEY_EMPRESA_ID, null)
@@ -63,7 +65,7 @@ class SessionManager(context: Context) {
         private const val KEY_ACCESS_TOKEN = "access_token"
         private const val KEY_REFRESH_TOKEN = "refresh_token"
         private const val KEY_EXPIRES_AT = "expires_at"
-        private const val KEY_USER_ID = "user_id"
+        const val KEY_USER_ID = "user_id"
         private const val KEY_PHONE_NUMBER = "phone_number"
         private const val KEY_FULL_NAME = "full_name"
         private const val KEY_EMPRESA_ID = "empresa_id"

@@ -80,6 +80,42 @@ class ChatRepository(
         }.getOrDefault(false)
     }
 
+    // Canal general vendedor <-> finanzas, independiente de cualquier deposito
+    // puntual (tabla backend "vendedor_messages"). Se mezcla con el resto del
+    // feed en MainScreen usando el mismo criterio de deduplicacion por id.
+    suspend fun getVendedorHistory(vendedorId: String, limit: Int = 50): List<ChatMessage> {
+        if (vendedorId.isBlank()) return emptyList()
+
+        val response = runCatching {
+            chatApi.getVendedorChatHistory(vendedorId = vendedorId, limit = limit)
+        }.getOrNull() ?: return emptyList()
+
+        if (!response.isSuccessful) return emptyList()
+
+        return response.body()
+            ?.messages
+            .orEmpty()
+            .mapNotNull { it.toChatMessage() }
+    }
+
+    suspend fun sendVendedorMessage(
+        vendedorId: String,
+        content: String
+    ): Boolean {
+        val cleanContent = content.trim()
+        if (vendedorId.isBlank() || cleanContent.isBlank()) return false
+
+        return runCatching {
+            chatApi.sendVendedorMessage(
+                vendedorId = vendedorId,
+                request = SendVendedorMessageRequestDto(
+                    content = cleanContent,
+                    messageType = "text"
+                )
+            ).isSuccessful
+        }.getOrDefault(false)
+    }
+
     private fun ChatMessageResponseDto.toChatMessage(report: Report? = null): ChatMessage? {
         val cleanMessageType = messageType.trim().lowercase(Locale.ROOT)
         val voucherCard = if (cleanMessageType == "image") report?.toVoucherCard() else null
@@ -104,6 +140,24 @@ class ChatRepository(
         )
     }
 
+    // Los mensajes del canal general de vendedor no llevan voucher ni van
+    // asociados a ningun deposito puntual (por eso replyToSolicitudId = null).
+    private fun VendedorMessageResponseDto.toChatMessage(): ChatMessage? {
+        val cleanContent = content.trim()
+        if (cleanContent.isBlank()) return null
+
+        return ChatMessage(
+            id = id,
+            from = senderType.toMessageFrom(),
+            text = cleanContent,
+            voucherCard = null,
+            replyToSolicitudId = null,
+            date = createdAt.toFormattedBackendDate("dd/MM/yyyy") ?: todayDate(),
+            time = createdAt.toFormattedBackendDate("HH:mm") ?: currentTime(),
+            status = MessageStatus.DELIVERED
+        )
+    }
+
     private fun Report.toVoucherCard(): VoucherCard {
         return VoucherCard(
             solicitudId = solicitudNum,
@@ -118,7 +172,7 @@ class ChatRepository(
 
     private fun String?.toMessageFrom(): MessageFrom {
         return when (this?.trim()?.lowercase(Locale.ROOT)) {
-            "user", "mobile", "cliente", "client" -> MessageFrom.USER
+            "user", "mobile", "cliente", "client", "vendedor" -> MessageFrom.USER
             else -> MessageFrom.BOT
         }
     }

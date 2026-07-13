@@ -29,3 +29,23 @@ data class SendUserMessageRequestDto(
 data class UploadChatImageRequestDto(
     val imagenBase64: String
 )
+
+data class VendedorMessageResponseDto(
+    val id: String,
+    val vendedorId: String?,
+    val senderType: String,
+    val senderId: String?,
+    val content: String,
+    val messageType: String,
+    val createdAt: String
+)
+
+data class VendedorChatHistoryResponseDto(
+    val messages: List<VendedorMessageResponseDto>,
+    val hasMore: Boolean = false
+)
+
+data class SendVendedorMessageRequestDto(
+    val content: String,
+    val messageType: String = "text"
+)

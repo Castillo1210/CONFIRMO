@@ -119,6 +119,10 @@ fun MainScreen(
     val sessionManager = remember { SessionManager(context) }
     val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
     val chatRepository = remember { ChatRepository() }
+    // Id del vendedor logueado (el propio usuario de la app): identifica el
+    // canal general de chat con finanzas (api/v1/chat/vendedores/{vendedorId}),
+    // independiente de cualquier deposito puntual.
+    val vendedorId = remember { sessionManager.getUserId().orEmpty() }
     var selectedTab by rememberSaveable { mutableStateOf(initialSelectedTab) }
     var chatWallpaper by remember { mutableStateOf(loadChatWallpaper(context)) }
     var showRegisterSheet by remember { mutableStateOf(false) }
@@ -146,7 +150,16 @@ fun MainScreen(
         reportLoadingMessage = reportSearchMessage(daysBack)
         val remoteReports = depositRepository.getReports(daysBack = daysBack)
         reports = remoteReports
-        val historyMessages = chatRepository.getHistoriesForReports(remoteReports)
+        val depositHistoryMessages = chatRepository.getHistoriesForReports(remoteReports)
+        // Feed general de finanzas <-> vendedor (mensajes sueltos, sin deposito
+        // asociado). Se mezcla con el historial por deposito en el mismo feed
+        // cronologico unico de ChatTab.
+        val vendedorHistoryMessages = if (vendedorId.isNotBlank()) {
+            chatRepository.getVendedorHistory(vendedorId)
+        } else {
+            emptyList()
+        }
+        val historyMessages = depositHistoryMessages + vendedorHistoryMessages
         if (historyMessages.isNotEmpty()) {
             messages = mergeChatMessages(messages, historyMessages)
         }
@@ -184,6 +197,27 @@ fun MainScreen(
                     val messageId = realtimeMessage?.id ?: event.messageId ?: UUID.randomUUID().toString()
                     val messageType = realtimeMessage?.messageType.orEmpty().lowercase(Locale.ROOT)
                     val depositId = event.depositId ?: realtimeMessage?.depositId
+                    val eventVendedorId = event.vendedorId ?: realtimeMessage?.vendedorId
+                    // Mensaje suelto del canal general finanzas <-> vendedor
+                    // (tabla vendedor_messages): no tiene depositId, asi que no
+                    // se intenta resolver voucherCard ni replyToSolicitudId, se
+                    // agrega directo al feed unico del chat.
+                    if (depositId.isNullOrBlank() && !eventVendedorId.isNullOrBlank()) {
+                        if (content.isNotBlank() && messages.none { it.id == messageId }) {
+                            val createdAt = realtimeMessage?.createdAt ?: event.createdAt
+                            messages = messages + ChatMessage(
+                                id = messageId,
+                                from = realtimeMessage?.senderType.toMessageFrom(),
+                                text = content,
+                                voucherCard = null,
+                                replyToSolicitudId = null,
+                                date = createdAt.toChatDate(),
+                                time = createdAt.toChatTime(),
+                                status = MessageStatus.DELIVERED
+                            )
+                        }
+                        return@collect
+                    }
                     val voucherCard = if (messageType == "image") {
                         reports.firstOrNull { it.id == depositId }?.toVoucherCard()
                     } else {
@@ -545,7 +579,6 @@ fun MainScreen(
                         },
                         onSendMessage = { text ->
                             val cleanText = text.trim()
-                            val targetDepositId = reports.firstOrNull()?.id.orEmpty()
                             val newMsg = ChatMessage(
                                 id = UUID.randomUUID().toString(),
                                 from = MessageFrom.USER,
@@ -555,10 +588,14 @@ fun MainScreen(
                                 status = MessageStatus.SENT
                             )
                             messages = messages + newMsg
-                            if (targetDepositId.isNotBlank()) {
+                            // El input libre de la barra inferior no responde a ningun
+                            // deposito/tarjeta puntual (ChatTab no distingue "responder a
+                            // X"), asi que siempre se manda por el canal general
+                            // finanzas <-> vendedor, no colgado del primer deposito.
+                            if (vendedorId.isNotBlank()) {
                                 registerScope.launch {
-                                    val sent = chatRepository.sendTextMessage(
-                                        depositId = targetDepositId,
+                                    val sent = chatRepository.sendVendedorMessage(
+                                        vendedorId = vendedorId,
                                         content = cleanText
                                     )
                                     if (!sent) {
@@ -3195,7 +3232,7 @@ private fun ReportStatus.spanishLabel(): String {
 
 private fun String?.toMessageFrom(): MessageFrom {
     return when (this?.trim()?.lowercase(Locale.ROOT)) {
-        "user", "mobile", "cliente", "client" -> MessageFrom.USER
+        "user", "mobile", "cliente", "client", "vendedor" -> MessageFrom.USER
         else -> MessageFrom.BOT
     }
 }

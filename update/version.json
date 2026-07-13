@@ -1,8 +1,8 @@
 {
-  "versionCode": 9,
-  "versionName": "1.8",
-  "updatedAt": "2026-07-04",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.8.apk",
-  "releaseNotes": "Mejoras en login, registro de depositos, chat con messageType text/image, lectura segura de vouchers privados y ajustes visuales.",
+  "versionCode": 10,
+  "versionName": "1.9",
+  "updatedAt": "2026-07-13",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.9.apk",
+  "releaseNotes": "Mejoras en la conexión con el backend",
   "required": false
 }
