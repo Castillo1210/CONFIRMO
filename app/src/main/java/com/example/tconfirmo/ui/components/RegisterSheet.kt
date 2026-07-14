@@ -3,6 +3,10 @@ package com.example.tconfirmo.ui.components
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
 import android.net.Uri
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -48,6 +52,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +67,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -91,8 +97,10 @@ import com.example.tconfirmo.ui.theme.TConfirmoTheme
 import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private enum class RegisterMode { Cart, Form, Success }
 private enum class PickerTarget { Empresa, Banco }
@@ -192,17 +200,35 @@ fun RegisterSheet(
     }
 
     var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
+    var pendingCameraFile by remember { mutableStateOf<File?>(null) }
+    var isVoucherProcessing by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         val capturedUri = pendingCameraUri
+        val capturedFile = pendingCameraFile
         pendingCameraUri = null
-        if (success && capturedUri != null) {
-            draftImage = VoucherImage.Camera(uri = capturedUri)
+        pendingCameraFile = null
+        if (success && capturedUri != null && capturedFile != null) {
+            isVoucherProcessing = true
+            coroutineScope.launch {
+                withContext(Dispatchers.IO) {
+                    // La foto que entrega la cámara viene a resolución nativa (varios MB).
+                    // Sin este paso, tanto la vista previa como el Base64 de subida tienen
+                    // que procesar el archivo completo, lo cual se siente como una demora
+                    // al "cargar" la imagen justo despues de tomarla.
+                    compressVoucherFile(capturedFile)
+                }
+                draftImage = VoucherImage.Camera(uri = capturedUri)
+                isVoucherProcessing = false
+            }
         }
     }
     fun launchCamera() {
-        val uri = createCameraVoucherUri(context)
+        val file = createCameraVoucherFile(context)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         pendingCameraUri = uri
+        pendingCameraFile = file
         cameraLauncher.launch(uri)
     }
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -217,25 +243,40 @@ fun RegisterSheet(
         cliente: String = ""
     ) {
         if (uris.isEmpty()) return
-        val incomingItems = uris.map { uri ->
-            DepositCartItem(
-                image = uri.toVoucherImage(context),
-                empresa = empresa,
-                banco = banco,
-                empresaId = empresaId,
-                bancoId = bancoId,
-                cliente = cliente
-            )
+        isVoucherProcessing = true
+        coroutineScope.launch {
+            val images = withContext(Dispatchers.IO) {
+                uris.map { uri -> uri.toVoucherImage(context) }
+            }
+            val incomingItems = images.map { image ->
+                DepositCartItem(
+                    image = image,
+                    empresa = empresa,
+                    banco = banco,
+                    empresaId = empresaId,
+                    bancoId = bancoId,
+                    cliente = cliente
+                )
+            }
+            items = items + incomingItems
+            resetDraft()
+            mode = RegisterMode.Cart
+            isVoucherProcessing = false
         }
-        items = items + incomingItems
-        resetDraft()
-        mode = RegisterMode.Cart
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         when (uris.size) {
             0 -> Unit
-            1 -> draftImage = uris.first().toVoucherImage(context)
+            1 -> {
+                val uri = uris.first()
+                isVoucherProcessing = true
+                coroutineScope.launch {
+                    val image = withContext(Dispatchers.IO) { uri.toVoucherImage(context) }
+                    draftImage = image
+                    isVoucherProcessing = false
+                }
+            }
             else -> addIncomingVoucherUris(
                 uris = uris,
                 empresa = draftEmpresa,
@@ -376,6 +417,7 @@ fun RegisterSheet(
 
             RegisterMode.Form -> NewDepositContent(
                 image = draftImage,
+                isProcessingImage = isVoucherProcessing,
                 empresa = draftEmpresa,
                 banco = draftBanco,
                 cliente = draftCliente,
@@ -562,6 +604,7 @@ private fun CartContent(
 @Composable
 private fun NewDepositContent(
     image: VoucherImage?,
+    isProcessingImage: Boolean = false,
     empresa: String,
     banco: String,
     cliente: String,
@@ -611,6 +654,7 @@ private fun NewDepositContent(
         Spacer(modifier = Modifier.height(10.dp))
         VoucherPicker(
             image = image,
+            isProcessing = isProcessingImage,
             onCamera = onCamera,
             onGallery = onGallery,
             onRemoveImage = onRemoveImage,
@@ -765,6 +809,7 @@ private fun DepositSummaryCard(
 @Composable
 private fun VoucherPicker(
     image: VoucherImage?,
+    isProcessing: Boolean = false,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
     onRemoveImage: () -> Unit,
@@ -778,7 +823,13 @@ private fun VoucherPicker(
             .background(Color(0xFFE7EAF4)),
         contentAlignment = Alignment.Center
     ) {
-        if (image == null) {
+        if (isProcessing && image == null) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                CircularProgressIndicator(color = PrimaryGreen, modifier = Modifier.size(32.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Procesando imagen...", fontSize = 13.sp, color = Color(0xFF6A7394))
+            }
+        } else if (image == null) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.InsertPhoto, contentDescription = null, tint = Color(0xFF9EA6C4), modifier = Modifier.size(42.dp))
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1173,13 +1224,8 @@ private fun DepositCartItem.isComplete(): Boolean {
     return empresa.isNotBlank() && banco.isNotBlank()
 }
 
-private fun createCameraVoucherUri(context: Context): Uri {
-    val file = File(context.cacheDir, "voucher_${System.currentTimeMillis()}.jpg")
-    return FileProvider.getUriForFile(
-        context,
-        "${context.packageName}.fileprovider",
-        file
-    )
+private fun createCameraVoucherFile(context: Context): File {
+    return File(context.cacheDir, "voucher_${System.currentTimeMillis()}.jpg")
 }
 
 private fun Uri.toVoucherImage(context: Context): VoucherImage {
@@ -1188,8 +1234,84 @@ private fun Uri.toVoucherImage(context: Context): VoucherImage {
     return if (isPdfVoucher(this, mimeType)) {
         VoucherImage.Pdf(localUri)
     } else {
+        // Los archivos de galeria suelen venir ya comprimidos por su app de origen,
+        // pero fotos compartidas directo desde otra camara/app pueden llegar igual
+        // de pesadas que una captura nativa: se normaliza el tamano aqui tambien.
+        localUri.path?.let { path -> compressVoucherFile(File(path)) }
         VoucherImage.Gallery(localUri)
     }
+}
+
+/**
+ * Reescala y recomprime un archivo de imagen en el propio disco, en el sitio.
+ * Soluciona la demora al mostrar/subir fotos de camara: sin esto, una captura
+ * nativa (8-12+ MP, varios MB) se decodifica completa tanto para la vista previa
+ * (Coil) como para el Base64 de subida, lo que se percibe como que la imagen
+ * "tarda en cargar" justo despues de tomar la foto.
+ */
+private fun compressVoucherFile(file: File, maxDimension: Int = 1600, quality: Int = 85): File {
+    if (!file.exists()) return file
+
+    val boundsOptions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.absolutePath, boundsOptions)
+    val originalWidth = boundsOptions.outWidth
+    val originalHeight = boundsOptions.outHeight
+    if (originalWidth <= 0 || originalHeight <= 0) return file
+
+    // Ya es pequena: no hace falta reprocesar.
+    if (maxOf(originalWidth, originalHeight) <= maxDimension) return file
+
+    var sampleSize = 1
+    val longerOriginalSide = maxOf(originalWidth, originalHeight)
+    while (longerOriginalSide / (sampleSize * 2) >= maxDimension) {
+        sampleSize *= 2
+    }
+
+    val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+    val rawBitmap = BitmapFactory.decodeFile(file.absolutePath, decodeOptions) ?: return file
+
+    val orientation = runCatching {
+        ExifInterface(file.absolutePath).getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        )
+    }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+
+    val rotationDegrees = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> 0f
+    }
+
+    val rotatedBitmap = if (rotationDegrees != 0f) {
+        val matrix = Matrix().apply { postRotate(rotationDegrees) }
+        val rotated = Bitmap.createBitmap(rawBitmap, 0, 0, rawBitmap.width, rawBitmap.height, matrix, true)
+        if (rotated !== rawBitmap) rawBitmap.recycle()
+        rotated
+    } else {
+        rawBitmap
+    }
+
+    val longestSide = maxOf(rotatedBitmap.width, rotatedBitmap.height)
+    val finalBitmap = if (longestSide > maxDimension) {
+        val scale = maxDimension.toFloat() / longestSide
+        val targetWidth = (rotatedBitmap.width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (rotatedBitmap.height * scale).toInt().coerceAtLeast(1)
+        val scaled = Bitmap.createScaledBitmap(rotatedBitmap, targetWidth, targetHeight, true)
+        if (scaled !== rotatedBitmap) rotatedBitmap.recycle()
+        scaled
+    } else {
+        rotatedBitmap
+    }
+
+    runCatching {
+        FileOutputStream(file).use { output ->
+            finalBitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)
+        }
+    }
+    finalBitmap.recycle()
+    return file
 }
 
 private fun String.toVoucherImage(): VoucherImage {

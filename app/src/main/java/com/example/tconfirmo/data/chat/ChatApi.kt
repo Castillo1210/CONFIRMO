@@ -32,5 +32,5 @@ interface ChatApi {
     suspend fun sendVendedorMessage(
         @Path("vendedorId") vendedorId: String,
         @Body request: SendVendedorMessageRequestDto
-    ): Response<Unit>
+    ): Response<VendedorMessageResponseDto>
 }

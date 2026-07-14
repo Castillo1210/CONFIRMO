@@ -17,4 +17,10 @@ interface AuthApi {
 
     @PUT("api/v1/auth/fcm-token")
     suspend fun updateFcmToken(@Body request: FcmTokenRequestDto): Response<Unit>
+
+    // Libera el bloqueo de dispositivo (DeviceId) del usuario para que pueda
+    // volver a loguearse desde otro celular. Requiere estar autenticado
+    // (token todavia valido) al momento de cerrar sesion.
+    @POST("api/v1/auth/logout")
+    suspend fun logout(): Response<Unit>
 }

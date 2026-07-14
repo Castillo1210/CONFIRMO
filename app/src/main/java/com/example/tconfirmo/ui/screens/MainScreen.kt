@@ -66,7 +66,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.FileProvider
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.unit.sp
@@ -75,6 +74,7 @@ import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.*
 import com.example.tconfirmo.data.auth.AuthRepository
 import com.example.tconfirmo.data.auth.AuthResult
+import com.example.tconfirmo.data.chat.ChatCache
 import com.example.tconfirmo.data.chat.ChatRepository
 import com.example.tconfirmo.data.deposits.DepositCreateResult
 import com.example.tconfirmo.data.deposits.DepositRepository
@@ -119,6 +119,7 @@ fun MainScreen(
     val sessionManager = remember { SessionManager(context) }
     val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
     val chatRepository = remember { ChatRepository() }
+    val chatCache = remember { ChatCache(context) }
     // Id del vendedor logueado (el propio usuario de la app): identifica el
     // canal general de chat con finanzas (api/v1/chat/vendedores/{vendedorId}),
     // independiente de cualquier deposito puntual.
@@ -140,9 +141,16 @@ fun MainScreen(
     var reportDaysBack by rememberSaveable { mutableStateOf(loadSavedReportDaysBack(context)) }
     var isLoadingReports by remember { mutableStateOf(false) }
     var reportLoadingMessage by remember { mutableStateOf("") }
-    var messages by remember { mutableStateOf(emptyList<ChatMessage>()) }
+    // Se inicializa con lo ultimo guardado en disco para que el chat muestre
+    // algo de inmediato al reabrir la app, en vez de una pantalla vacia
+    // mientras se espera la respuesta de api-bridge (igual que WhatsApp/Telegram
+    // muestran el historial local antes de sincronizar).
+    var messages by remember { mutableStateOf(chatCache.load()) }
     var reports by remember { mutableStateOf(emptyList<Report>()) }
     var reportsBackPressCount by remember { mutableStateOf(0) }
+    // Paginacion del feed general vendedor<->finanzas ("Ver mensajes anteriores").
+    var vendedorChatHasMore by remember { mutableStateOf(true) }
+    var isLoadingOlderMessages by remember { mutableStateOf(false) }
 
     suspend fun refreshReportsFromApi(daysBack: Int = reportDaysBack) {
         if (sessionManager.isTestMode()) return
@@ -162,8 +170,32 @@ fun MainScreen(
         val historyMessages = depositHistoryMessages + vendedorHistoryMessages
         if (historyMessages.isNotEmpty()) {
             messages = mergeChatMessages(messages, historyMessages)
+            chatCache.save(messages)
         }
         isLoadingReports = false
+    }
+
+    // "Ver mensajes anteriores" agotando el historial ya cargado: pide una
+    // pagina mas vieja al backend usando como cursor el createdAt del mensaje
+    // vendedor mas antiguo que ya se tiene, igual contrato que usa el panel web
+    // (before/limit/hasMore).
+    suspend fun loadOlderVendedorMessages() {
+        if (isLoadingOlderMessages || !vendedorChatHasMore || vendedorId.isBlank()) return
+        isLoadingOlderMessages = true
+        val oldestVendedorCursor = messages
+            .filter { it.source == ChatMessageSource.VENDEDOR && !it.createdAtRaw.isNullOrBlank() }
+            .minByOrNull { it.createdAtRaw!! }
+            ?.createdAtRaw
+        val (olderMessages, hasMore) = chatRepository.getVendedorHistoryPage(
+            vendedorId = vendedorId,
+            before = oldestVendedorCursor
+        )
+        vendedorChatHasMore = hasMore
+        if (olderMessages.isNotEmpty()) {
+            messages = mergeChatMessages(messages, olderMessages)
+            chatCache.save(messages)
+        }
+        isLoadingOlderMessages = false
     }
 
     // FIX: la tarjeta de voucher que ya se pinto en el chat quedaba "congelada"
@@ -205,16 +237,44 @@ fun MainScreen(
                     if (depositId.isNullOrBlank() && !eventVendedorId.isNullOrBlank()) {
                         if (content.isNotBlank() && messages.none { it.id == messageId }) {
                             val createdAt = realtimeMessage?.createdAt ?: event.createdAt
-                            messages = messages + ChatMessage(
-                                id = messageId,
-                                from = realtimeMessage?.senderType.toMessageFrom(),
-                                text = content,
-                                voucherCard = null,
-                                replyToSolicitudId = null,
-                                date = createdAt.toChatDate(),
-                                time = createdAt.toChatTime(),
-                                status = MessageStatus.DELIVERED
-                            )
+                            // Este mismo mensaje puede haber sido pintado ya de forma
+                            // optimista (ver onSendMessage) con un id temporal
+                            // "pending-...". Si es asi, se reemplaza ese registro con el
+                            // id/timestamp reales en vez de agregar uno nuevo — evita el
+                            // mensaje duplicado que se veia al enviar desde este mismo
+                            // dispositivo.
+                            val pendingMatch = messages.firstOrNull {
+                                it.id.startsWith("pending-") && it.from == MessageFrom.USER && it.text == content
+                            }
+                            messages = if (pendingMatch != null) {
+                                messages.map { msg ->
+                                    if (msg.id == pendingMatch.id) {
+                                        msg.copy(
+                                            id = messageId,
+                                            date = createdAt.toChatDate(),
+                                            time = createdAt.toChatTime(),
+                                            createdAtRaw = createdAt,
+                                            source = ChatMessageSource.VENDEDOR,
+                                            status = MessageStatus.DELIVERED
+                                        )
+                                    } else {
+                                        msg
+                                    }
+                                }
+                            } else {
+                                messages + ChatMessage(
+                                    id = messageId,
+                                    from = realtimeMessage?.senderType.toMessageFrom(),
+                                    text = content,
+                                    voucherCard = null,
+                                    replyToSolicitudId = null,
+                                    date = createdAt.toChatDate(),
+                                    time = createdAt.toChatTime(),
+                                    status = MessageStatus.DELIVERED,
+                                    createdAtRaw = createdAt,
+                                    source = ChatMessageSource.VENDEDOR
+                                )
+                            }
                         }
                         return@collect
                     }
@@ -573,14 +633,22 @@ fun MainScreen(
                         wallpaper = chatWallpaper,
                         reports = reports,
                         messages = messages,
+                        hasMoreOlderMessages = vendedorChatHasMore,
+                        isLoadingOlderMessages = isLoadingOlderMessages,
+                        onLoadOlderMessages = { registerScope.launch { loadOlderVendedorMessages() } },
                         onBack = { selectedTab = 0 },
                         onOpenRegister = {
                             showRegisterSheet = true
                         },
                         onSendMessage = { text ->
                             val cleanText = text.trim()
+                            // Id temporal solo para poder ubicar y reemplazar este mensaje
+                            // despues (por la respuesta del POST o por el eco de SignalR,
+                            // lo que llegue primero) sin duplicarlo. El prefijo "pending-"
+                            // es lo que usa el handler de tiempo real para reconciliar.
+                            val tempId = "pending-${UUID.randomUUID()}"
                             val newMsg = ChatMessage(
-                                id = UUID.randomUUID().toString(),
+                                id = tempId,
                                 from = MessageFrom.USER,
                                 text = cleanText,
                                 date = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()),
@@ -594,11 +662,17 @@ fun MainScreen(
                             // finanzas <-> vendedor, no colgado del primer deposito.
                             if (vendedorId.isNotBlank()) {
                                 registerScope.launch {
-                                    val sent = chatRepository.sendVendedorMessage(
+                                    val sentMessage = chatRepository.sendVendedorMessage(
                                         vendedorId = vendedorId,
                                         content = cleanText
                                     )
-                                    if (!sent) {
+                                    if (sentMessage != null) {
+                                        // Si el eco de SignalR ya reconcilio este mismo
+                                        // "pending-..." (ver RealtimeEvent.ChatMessageCreated
+                                        // mas arriba), este map simplemente no encuentra nada
+                                        // que reemplazar y no pasa nada.
+                                        messages = messages.map { if (it.id == tempId) sentMessage else it }
+                                    } else {
                                         Toast.makeText(context, "No se pudo guardar el mensaje en chat.", Toast.LENGTH_SHORT).show()
                                     }
                                 }
@@ -742,6 +816,9 @@ fun ChatTab(
     wallpaper: String = "llanta",
     reports: List<Report> = emptyList(),
     messages: List<ChatMessage>,
+    hasMoreOlderMessages: Boolean = false,
+    isLoadingOlderMessages: Boolean = false,
+    onLoadOlderMessages: () -> Unit = {},
     onBack: () -> Unit,
     onOpenRegister: () -> Unit,
     onSendMessage: (String) -> Unit
@@ -935,12 +1012,26 @@ fun ChatTab(
                     item(key = "show_older_messages") {
                         ShowOlderMessagesButton(
                             count = hiddenOlderCount,
+                            isLoading = isLoadingOlderMessages,
                             onClick = {
-                                if (hasOlderMessagesToLoad) {
-                                    showOlderMessages = true
-                                    scope.launch { listState.animateScrollToItem(0) }
-                                } else {
-                                    Toast.makeText(context, "No hay mas mensajes anteriores.", Toast.LENGTH_SHORT).show()
+                                when {
+                                    hasOlderMessagesToLoad -> {
+                                        // Ya hay mensajes viejos cargados en memoria (de la
+                                        // carga inicial/cache): solo hay que revelarlos, sin
+                                        // pegarle a la red.
+                                        showOlderMessages = true
+                                        scope.launch { listState.animateScrollToItem(0) }
+                                    }
+                                    hasMoreOlderMessages && !isLoadingOlderMessages -> {
+                                        // Se agoto lo que ya se tenia local: pedir la
+                                        // siguiente pagina real al backend (igual que el
+                                        // panel), y revelar apenas llegue.
+                                        showOlderMessages = true
+                                        onLoadOlderMessages()
+                                    }
+                                    else -> {
+                                        Toast.makeText(context, "No hay mas mensajes anteriores.", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             }
                         )
@@ -971,10 +1062,17 @@ fun ChatTab(
                 }
 
                 // Input Area
+                // FIX: tenia un offset(y = 25.dp) fijo que se sumaba al
+                // navigationBarsPadding() del Column padre. Modifier.offset no
+                // reserva espacio, solo desplaza el dibujo, asi que ese
+                // desplazamiento se comia el inset reservado para la barra de
+                // navegacion. Con botones clasicos (inset mas alto, ~48dp)
+                // todavia quedaba margen y se veia bien; con gestos (inset mas
+                // chico, ~24dp) el offset lo consumia entero y la barra
+                // quedaba pegada/atropellada contra el borde real de pantalla.
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .offset(y = 25.dp)
                         .padding(horizontal = 12.dp)
                         .padding(top = 4.dp, bottom = 0.dp)
                 ) {
@@ -1105,6 +1203,7 @@ fun ChatTab(
 @Composable
 private fun ShowOlderMessagesButton(
     count: Int,
+    isLoading: Boolean = false,
     onClick: () -> Unit
 ) {
     Box(
@@ -1114,7 +1213,7 @@ private fun ShowOlderMessagesButton(
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            modifier = Modifier.clickable(onClick = onClick),
+            modifier = Modifier.clickable(enabled = !isLoading, onClick = onClick),
             shape = RoundedCornerShape(18.dp),
             color = Color.White.copy(alpha = 0.94f),
             shadowElevation = 4.dp,
@@ -1124,19 +1223,34 @@ private fun ShowOlderMessagesButton(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    Icons.Default.KeyboardArrowUp,
-                    contentDescription = null,
-                    tint = PrimaryGreen,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = if (count == 1) "Ver mensaje anterior" else "Ver mensajes anteriores",
-                    color = Color(0xFF17265F),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = PrimaryGreen,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Cargando...",
+                        color = Color(0xFF17265F),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.KeyboardArrowUp,
+                        contentDescription = null,
+                        tint = PrimaryGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (count == 1) "Ver mensaje anterior" else "Ver mensajes anteriores",
+                        color = Color(0xFF17265F),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }
@@ -1730,149 +1844,6 @@ private fun NoticesTab() {
                     lineHeight = 18.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-            }
-        }
-    }
-}
-
-private data class NoticeExample(
-    val icon: ImageVector,
-    val title: String,
-    val message: String
-)
-
-@Composable
-private fun NoticeExampleItem(
-    notice: NoticeExample,
-    isRead: Boolean,
-    onClick: () -> Unit
-) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(104.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        color =  if (isRead) Color.White else Color(0xFFFFF6B8) ,
-        shadowElevation = 2.dp,
-        border = BorderStroke(1.dp, if (isRead) Color(0xff96AFFF) else AccentGreen.copy(alpha = 0.75f))
-    ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Surface(
-                modifier = Modifier.size(38.dp),
-                shape = RoundedCornerShape(14.dp),
-                color = Color(0xFFFFF6B8)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        notice.icon,
-                        contentDescription = null,
-                        tint = PrimaryGreen,
-                        modifier = Modifier.size(21.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        notice.title,
-                        color = if (isRead) Color(0xFF344171) else Color(0xFF17265F),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = if (isRead) Color(0xFFE7EAF4) else PrimaryGreen
-                    ) {
-                        Text(
-                            if (isRead) "Leido" else "Nuevo",
-                            color = if (isRead) PrimaryGreen else Color.White,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                        )
-                    }
-                }
-                Text(
-                    notice.message,
-                    color = Color(0xFF6A7394),
-                    fontSize = 12.sp,
-                    lineHeight = 16.sp,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun NoticeExampleDialog(
-    notice: NoticeExample,
-    onDismiss: () -> Unit
-) {
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White,
-            tonalElevation = 6.dp,
-            shadowElevation = 12.dp
-        ) {
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        modifier = Modifier.size(46.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        color = Color(0xFFFFF6B8)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                notice.icon,
-                                contentDescription = null,
-                                tint = PrimaryGreen,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        notice.title,
-                        color = Color(0xFF17265F),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 17.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    notice.message,
-                    color = Color(0xFF344171),
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
-                Spacer(modifier = Modifier.height(18.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = onDismiss) {
-                        Text("Cerrar", color = PrimaryGreen, fontWeight = FontWeight.Bold)
-                    }
-                }
             }
         }
     }
@@ -3024,13 +2995,6 @@ private fun PasswordField(
     )
 }
 
-fun getInitialMessages(): List<ChatMessage> {
-    return emptyList()
-}
-
-fun getInitialReports(): List<Report> {
-    return emptyList()
-}
 
 private fun mergeChatMessages(
     currentMessages: List<ChatMessage>,

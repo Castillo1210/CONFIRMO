@@ -2,9 +2,16 @@ package com.example.tconfirmo.data.session
 
 import android.content.Context
 import com.example.tconfirmo.data.auth.LoginResponseDto
+import java.util.UUID
 
 class SessionManager(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    // Archivo de preferencias APARTE del de la sesion, a proposito: el id de
+    // dispositivo debe sobrevivir a clearSession() (login/logout normal), ya
+    // que identifica el celular fisico, no la sesion activa. Se usa para que
+    // el backend pueda bloquear el login del mismo vendedor desde un segundo
+    // celular mientras el primero sigue activo.
+    private val devicePrefs = context.applicationContext.getSharedPreferences(DEVICE_PREFS_NAME, Context.MODE_PRIVATE)
 
     fun saveSession(response: LoginResponseDto, isTestMode: Boolean = false) {
         val expiresAt = System.currentTimeMillis() + response.expiresInSeconds * 1000L
@@ -58,8 +65,21 @@ class SessionManager(context: Context) {
         prefs.edit().clear().apply()
     }
 
+    // Id propio de esta instalacion (no de la sesion). Se genera una sola vez
+    // y se reusa siempre, incluso entre logins/logouts distintos en el mismo
+    // celular.
+    fun getOrCreateDeviceId(): String {
+        val existing = devicePrefs.getString(KEY_DEVICE_ID, null)
+        if (!existing.isNullOrBlank()) return existing
+        val newId = UUID.randomUUID().toString()
+        devicePrefs.edit().putString(KEY_DEVICE_ID, newId).apply()
+        return newId
+    }
+
     companion object {
         const val PREFS_NAME = "tconfirmo_session"
+        private const val DEVICE_PREFS_NAME = "tconfirmo_device"
+        private const val KEY_DEVICE_ID = "device_id"
         const val KEY_LOGGED_IN = "logged_in"
         private const val KEY_TEST_MODE = "test_mode"
         private const val KEY_ACCESS_TOKEN = "access_token"

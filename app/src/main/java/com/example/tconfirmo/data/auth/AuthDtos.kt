@@ -3,7 +3,11 @@ package com.example.tconfirmo.data.auth
 data class LoginRequestDto(
     val phoneNumber: String,
     val password: String,
-    val fcmToken: String? = null
+    val fcmToken: String? = null,
+    // Id propio de esta instalacion (no cambia entre logins). El backend lo
+    // usa para bloquear el login del mismo vendedor desde un segundo celular
+    // mientras el primero sigue con sesion activa.
+    val deviceId: String? = null
 )
 
 data class LoginResponseDto(

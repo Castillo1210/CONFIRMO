@@ -20,7 +20,8 @@ class AuthRepository(
                 LoginRequestDto(
                     phoneNumber = phoneNumber.toPeruPhoneNumber(),
                     password = password,
-                    fcmToken = fcmToken
+                    fcmToken = fcmToken,
+                    deviceId = sessionManager.getOrCreateDeviceId()
                 )
             )
 
@@ -35,6 +36,13 @@ class AuthRepository(
                     }
                 }
                 response.code() == 401 -> AuthResult.Error("Numero o contrasena incorrectos.")
+                // Bloqueo de sesion unica por dispositivo (solo vendedores):
+                // ya hay una sesion activa en otro celular.
+                response.code() == 409 -> AuthResult.Error(
+                    response.loginConflictMessage(
+                        "Ya hay una sesion activa en otro dispositivo. Cierra sesion ahi primero para continuar."
+                    )
+                )
                 response.code() in 500..599 -> AuthResult.Error("Servicio no disponible. Intenta nuevamente.")
                 else -> AuthResult.Error("No se pudo iniciar sesion. Intenta nuevamente.")
             }
@@ -43,6 +51,15 @@ class AuthRepository(
         } catch (error: Exception) {
             AuthResult.Error("No se pudo iniciar sesion. Intenta nuevamente.")
         }
+    }
+
+    // Best-effort: libera el DeviceId en el backend para que este vendedor
+    // pueda loguearse despues desde otro celular. Si falla (sin red, token ya
+    // vencido, etc.) no debe bloquear el logout local — el usuario igual se
+    // desloguea de este celular, y el backend eventualmente puede ofrecer
+    // otra via para liberar el dispositivo si esto nunca llega a correr.
+    suspend fun logout(): Boolean {
+        return runCatching { authApi.logout().isSuccessful }.getOrDefault(false)
     }
 
     suspend fun changePassword(currentPassword: String, newPassword: String): AuthResult {
@@ -107,7 +124,17 @@ class AuthRepository(
         }.getOrNull() ?: defaultMessage
     }
 
+    private fun retrofit2.Response<LoginResponseDto>.loginConflictMessage(defaultMessage: String): String {
+        return runCatching {
+            gson.fromJson(errorBody()?.string(), ErrorMessageDto::class.java)
+                ?.message
+                ?.takeIf { it.isNotBlank() }
+        }.getOrNull() ?: defaultMessage
+    }
+
 }
+
+private data class ErrorMessageDto(val message: String? = null)
 
 private fun String.toPeruPhoneNumber(): String {
     val digits = filter { it.isDigit() }

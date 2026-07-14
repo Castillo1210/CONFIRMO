@@ -1,6 +1,7 @@
 ﻿package com.example.tconfirmo.data.chat
 
 import com.example.tconfirmo.data.ChatMessage
+import com.example.tconfirmo.data.ChatMessageSource
 import com.example.tconfirmo.data.DepositDraft
 import com.example.tconfirmo.data.MessageFrom
 import com.example.tconfirmo.data.MessageStatus
@@ -84,36 +85,54 @@ class ChatRepository(
     // puntual (tabla backend "vendedor_messages"). Se mezcla con el resto del
     // feed en MainScreen usando el mismo criterio de deduplicacion por id.
     suspend fun getVendedorHistory(vendedorId: String, limit: Int = 50): List<ChatMessage> {
-        if (vendedorId.isBlank()) return emptyList()
-
-        val response = runCatching {
-            chatApi.getVendedorChatHistory(vendedorId = vendedorId, limit = limit)
-        }.getOrNull() ?: return emptyList()
-
-        if (!response.isSuccessful) return emptyList()
-
-        return response.body()
-            ?.messages
-            .orEmpty()
-            .mapNotNull { it.toChatMessage() }
+        return getVendedorHistoryPage(vendedorId, before = null, limit = limit).first
     }
 
+    // Version paginada del historial general: "before" es el createdAt (ISO,
+    // crudo) del mensaje mas antiguo ya cargado. El backend devuelve "hasMore"
+    // para saber si vale la pena seguir mostrando el boton "Ver mensajes
+    // anteriores" (mismo contrato que usa/deberia usar el panel web).
+    suspend fun getVendedorHistoryPage(
+        vendedorId: String,
+        before: String?,
+        limit: Int = 50
+    ): Pair<List<ChatMessage>, Boolean> {
+        if (vendedorId.isBlank()) return emptyList<ChatMessage>() to false
+
+        val response = runCatching {
+            chatApi.getVendedorChatHistory(vendedorId = vendedorId, before = before, limit = limit)
+        }.getOrNull() ?: return emptyList<ChatMessage>() to false
+
+        if (!response.isSuccessful) return emptyList<ChatMessage>() to false
+
+        val body = response.body() ?: return emptyList<ChatMessage>() to false
+        val mapped = body.messages.mapNotNull { it.toChatMessage() }
+        return mapped to body.hasMore
+    }
+
+    // Devuelve el mensaje ya persistido por el backend (con su id/timestamp
+    // reales) para poder reemplazar el pintado optimista local en vez de
+    // dejarlo colgado con un id de cliente que nunca va a matchear con el
+    // eco que llega por SignalR (eso era lo que causaba el mensaje duplicado).
     suspend fun sendVendedorMessage(
         vendedorId: String,
         content: String
-    ): Boolean {
+    ): ChatMessage? {
         val cleanContent = content.trim()
-        if (vendedorId.isBlank() || cleanContent.isBlank()) return false
+        if (vendedorId.isBlank() || cleanContent.isBlank()) return null
 
-        return runCatching {
+        val response = runCatching {
             chatApi.sendVendedorMessage(
                 vendedorId = vendedorId,
                 request = SendVendedorMessageRequestDto(
                     content = cleanContent,
                     messageType = "text"
                 )
-            ).isSuccessful
-        }.getOrDefault(false)
+            )
+        }.getOrNull() ?: return null
+
+        if (!response.isSuccessful) return null
+        return response.body()?.toChatMessage()
     }
 
     private fun ChatMessageResponseDto.toChatMessage(report: Report? = null): ChatMessage? {
@@ -136,7 +155,9 @@ class ChatRepository(
             replyToSolicitudId = replyToSolicitudId,
             date = createdAt.toFormattedBackendDate("dd/MM/yyyy") ?: todayDate(),
             time = createdAt.toFormattedBackendDate("HH:mm") ?: currentTime(),
-            status = MessageStatus.DELIVERED
+            status = MessageStatus.DELIVERED,
+            createdAtRaw = createdAt,
+            source = ChatMessageSource.DEPOSIT
         )
     }
 
@@ -154,7 +175,9 @@ class ChatRepository(
             replyToSolicitudId = null,
             date = createdAt.toFormattedBackendDate("dd/MM/yyyy") ?: todayDate(),
             time = createdAt.toFormattedBackendDate("HH:mm") ?: currentTime(),
-            status = MessageStatus.DELIVERED
+            status = MessageStatus.DELIVERED,
+            createdAtRaw = createdAt,
+            source = ChatMessageSource.VENDEDOR
         )
     }
 

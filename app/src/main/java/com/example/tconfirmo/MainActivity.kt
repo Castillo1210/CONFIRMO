@@ -84,8 +84,23 @@ class MainActivity : ComponentActivity() {
                     },
                     onLogout = {
                         isLoggedIn = false
-                        sessionManager.clearSession()
-                        lifecycleScope.launch { realtimeClient.disconnect() }
+                        lifecycleScope.launch {
+                            // Debe correr ANTES de limpiar la sesion local: el
+                            // logout necesita el access token todavia valido
+                            // para que el backend sepa a que usuario liberarle
+                            // el DeviceId (restriccion de sesion unica por
+                            // dispositivo). Best-effort: si falla (sin
+                            // internet, token ya vencido), el logout local
+                            // sigue adelante igual.
+                            runCatching {
+                                AuthRepository(
+                                    authApi = ApiClient.authApi,
+                                    sessionManager = sessionManager
+                                ).logout()
+                            }
+                            sessionManager.clearSession()
+                            realtimeClient.disconnect()
+                        }
                     },
                     onCheckForUpdates = { checkForUpdates(showNoUpdate = true) }
                 )

@@ -33,8 +33,18 @@ data class ChatMessage(
     val replyToSolicitudId: String? = null,        // Vincula la respuesta del bot al voucher (#001, #002…)
     val date: String = "",
     val time: String,
-    val status: MessageStatus? = null
+    val status: MessageStatus? = null,
+    // Timestamp ISO crudo del backend (sin formatear), usado como cursor "before"
+    // para pedir mensajes mas antiguos (paginacion del chat general vendedor).
+    val createdAtRaw: String? = null,
+    // Distingue el feed general vendedor<->finanzas del chat por deposito, para
+    // poder paginar especificamente el primero (igual que el panel web).
+    val source: ChatMessageSource = ChatMessageSource.DEPOSIT
 )
+
+enum class ChatMessageSource {
+    DEPOSIT, VENDEDOR
+}
 
 enum class MessageStatus {
     SENT, DELIVERED, READ
