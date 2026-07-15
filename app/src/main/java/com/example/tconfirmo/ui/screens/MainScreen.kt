@@ -82,11 +82,10 @@ import com.example.tconfirmo.data.realtime.RealtimeClient
 import com.example.tconfirmo.data.realtime.RealtimeEvent
 import com.example.tconfirmo.data.remote.ApiClient
 import com.example.tconfirmo.data.session.SessionManager
-import com.example.tconfirmo.data.vouchers.SignedVoucherRepository
-import com.example.tconfirmo.data.vouchers.SignedVoucherResult
 import com.example.tconfirmo.ui.components.MessageBubble
 import com.example.tconfirmo.ui.components.PdfPreview
 import com.example.tconfirmo.ui.components.RegisterSheet
+import com.example.tconfirmo.ui.components.SignedVoucherImage
 import com.example.tconfirmo.ui.theme.AccentGreen
 import com.example.tconfirmo.ui.theme.PrimaryDarkGreen
 import com.example.tconfirmo.ui.theme.PrimaryGreen
@@ -607,18 +606,25 @@ fun MainScreen(
                             showRegisterSheet = true
                         },
                         onRegularize = { report ->
-                            updatePendingSharedVouchers(emptyList())
-                            registerInitialDrafts = listOf(
-                                DepositDraft(
-                                    empresa = report.empresa,
-                                    banco = report.banco,
-                                    cliente = report.cliente,
-                                    imageUri = report.imageUrl.orEmpty()
+                            // La imagen del voucher no viene en el listado (ver
+                            // DepositRepository.getReports); se pide bajo demanda
+                            // justo antes de abrir el formulario de regularizacion.
+                            registerScope.launch {
+                                val enriched = depositRepository.enrichWithDetail(report)
+                                updatePendingSharedVouchers(emptyList())
+                                registerInitialDrafts = listOf(
+                                    DepositDraft(
+                                        empresa = enriched.empresa,
+                                        banco = enriched.banco,
+                                        cliente = enriched.cliente,
+                                        imageUri = enriched.imageUrl.orEmpty()
+                                    )
                                 )
-                            )
-                            registerResetKey += 1
-                            showRegisterSheet = true
+                                registerResetKey += 1
+                                showRegisterSheet = true
+                            }
                         },
+                        onLoadReportDetail = depositRepository::enrichWithDetail,
                         onLoadPreviousDays = {
                             val nextDaysBack = reportDaysBack + 1
                             reportDaysBack = nextDaysBack
@@ -834,10 +840,24 @@ fun ChatTab(
     val context = LocalContext.current
     val todayDate = remember { todayChatDate() }
     val visibleMessages = remember(messages, showOlderMessages, todayDate) {
+        // FIX crash "Key ... was already used" en el LazyColumn del chat: el
+        // item de cada mensaje usa item(key = msg.id), y Compose exige keys
+        // unicas dentro de la misma lista. "messages" puede terminar con dos
+        // entradas de igual id bajo condiciones de carrera (reconexion de
+        // tiempo real durante el envio de un lote de vouchers, un evento
+        // ChatMessageCreated que llega mas de una vez desde el backend,
+        // etc.) — mergeChatMessages ya deduplica al traer historial, pero los
+        // agregados en vivo (RealtimeEvent.ChatMessageCreated, envio
+        // optimista) se hacen directo sobre "messages" y no pasan por ahi.
+        // Se deduplica aca, como ultima linea de defensa antes de pintar,
+        // quedandonos con la version MAS reciente de cada id: associateBy
+        // sobreescribe el value en cada colision pero mantiene la posicion
+        // original en el orden de iteracion (no reordena).
+        val deduped = messages.associateBy { it.id }.values.toList()
         val filteredMessages = if (showOlderMessages) {
-            messages
+            deduped
         } else {
-            messages.filter { it.isTodayMessage(todayDate) }
+            deduped.filter { it.isTodayMessage(todayDate) }
         }
         filteredMessages.sortedWith(compareBy<ChatMessage> { it.chatSortDate(todayDate) }.thenBy { it.time })
     }
@@ -1367,15 +1387,18 @@ private fun VoucherImageDialog(
                     if (voucher.imageUrl.isPdfVoucher()) {
                         PdfPreview(
                             uriString = voucher.imageUrl,
+                            depositId = voucher.depositId,
                             modifier = Modifier.fillMaxSize(),
                             label = "PDF adjunto"
                         )
                     } else {
-                        coil.compose.AsyncImage(
-                            model = voucher.imageUrl,
+                        // Antes usaba voucher.imageUrl (referencia cruda de GCS) directo
+                        // en un AsyncImage normal, que no la sabe firmar. Con depositId
+                        // se pide via el endpoint redirect, que siempre firma fresco.
+                        SignedVoucherImage(
+                            depositId = voucher.depositId,
                             contentDescription = "Voucher ${voucher.solicitudId}",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            modifier = Modifier.fillMaxSize()
                         )
                     }
                 }
@@ -1392,6 +1415,7 @@ fun ReportsTab(
     loadingMessage: String,
     onOpenRegister: () -> Unit,
     onRegularize: (Report) -> Unit,
+    onLoadReportDetail: suspend (Report) -> Report = { it },
     onLoadPreviousDays: () -> Unit
 ) {
     var filter by remember { mutableStateOf("all") }
@@ -1400,11 +1424,20 @@ fun ReportsTab(
     var showExportSheet by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val reportsListState = rememberLazyListState()
+    // FIX defensivo (mismo patron que "visibleMessages" en el chat): esta
+    // LazyColumn usa items(key = { it.id }), asi que dos Report con el mismo
+    // id revientan con "Key ... was already used". El envio de un LISTADO de
+    // vouchers agrega optimistamente "newReports + reports" (mas arriba) y
+    // en paralelo puede llegar un refreshReportsFromApi() u otro evento en
+    // tiempo real tocando "reports" -- se deduplica aca, quedandonos con la
+    // version mas reciente de cada id, como ultima linea de defensa antes de
+    // paginar/pintar.
+    val dedupedReports = reports.associateBy { it.id }.values.toList()
     val filteredReports = when (filter) {
-        "pending" -> reports.filter { it.status == ReportStatus.PENDING }
-        "validated" -> reports.filter { it.status == ReportStatus.VALIDATED }
-        "rejected" -> reports.filter { it.status == ReportStatus.REJECTED }
-        else -> reports
+        "pending" -> dedupedReports.filter { it.status == ReportStatus.PENDING }
+        "validated" -> dedupedReports.filter { it.status == ReportStatus.VALIDATED }
+        "rejected" -> dedupedReports.filter { it.status == ReportStatus.REJECTED }
+        else -> dedupedReports
     }
     val reportsPageSize = 6
     val totalPages = ((filteredReports.size + reportsPageSize - 1) / reportsPageSize).coerceAtLeast(1)
@@ -1589,7 +1622,8 @@ fun ReportsTab(
         selectedReport?.let { report ->
             ReportDetailSheet(
                 report = report,
-                onClose = { selectedReport = null }
+                onClose = { selectedReport = null },
+                onLoadDetail = onLoadReportDetail
             )
         }
 
@@ -2038,9 +2072,23 @@ private fun Report.companyLogoRes(): Int {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
+private fun ReportDetailSheet(
+    report: Report,
+    onClose: () -> Unit,
+    onLoadDetail: suspend (Report) -> Report = { it }
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * 0.7f
+    // report (de la lista) no trae imagen de voucher ni motivo de rechazo a
+    // proposito (ver DepositRepository.getReports). Se completan aca, una
+    // sola vez, al abrir este detalle puntual.
+    var enrichedReport by remember(report.id) { mutableStateOf(report) }
+    var isLoadingDetail by remember(report.id) { mutableStateOf(true) }
+    LaunchedEffect(report.id) {
+        isLoadingDetail = true
+        enrichedReport = onLoadDetail(report)
+        isLoadingDetail = false
+    }
     val statusColor = when (report.status) {
         ReportStatus.VALIDATED -> Color(0xFF166534)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
@@ -2117,7 +2165,7 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
                 }
             )
 
-            if (report.status == ReportStatus.REJECTED && !report.mensajeValidacion.isNullOrBlank()) {
+            if (report.status == ReportStatus.REJECTED && (isLoadingDetail || !enrichedReport.mensajeValidacion.isNullOrBlank())) {
                 Spacer(modifier = Modifier.height(14.dp))
                 Text("Motivo del rechazo", fontSize = 11.sp, color = PrimaryDarkGreen.copy(alpha = 0.72f), fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(6.dp))
@@ -2128,7 +2176,7 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
                     border = BorderStroke(1.dp, Color(0xFFB91C1C).copy(alpha = 0.32f))
                 ) {
                     Text(
-                        text = report.mensajeValidacion,
+                        text = if (isLoadingDetail) "Cargando..." else enrichedReport.mensajeValidacion.orEmpty(),
                         color = Color(0xFFB71C1C),
                         fontSize = 13.sp,
                         modifier = Modifier.padding(14.dp)
@@ -2137,6 +2185,11 @@ private fun ReportDetailSheet(report: Report, onClose: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(14.dp))
+            // Se usa "report" (no "enrichedReport"): la referencia del voucher
+            // ya viene gratis en el listado y SignedVoucherImage la resuelve
+            // por su cuenta (con su propio loading interno) — no hace falta
+            // esperar el fetch de detalle (que aca solo trae el motivo de
+            // rechazo) para poder mostrar la imagen.
             ReportVoucherSection(report)
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -2165,13 +2218,14 @@ private fun ReportVoucherSection(report: Report) {
 
                 imageUrl.isPdfVoucher() -> PdfReportPreview(
                     uriString = imageUrl,
+                    depositId = report.id,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(520.dp)
                 )
 
                 else -> SignedVoucherImage(
-                    voucherReference = imageUrl,
+                    depositId = report.id,
                     contentDescription = "Voucher ${report.solicitudNum}",
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2204,118 +2258,8 @@ private fun ReportVoucherSection(report: Report) {
 }
 
 @Composable
-private fun PdfReportPreview(uriString: String, modifier: Modifier = Modifier) {
-    PdfPreview(uriString = uriString, modifier = modifier, label = "Documento PDF adjunto")
-}
-
-@Composable
-private fun SignedVoucherImage(
-    voucherReference: String,
-    contentDescription: String,
-    modifier: Modifier = Modifier
-) {
-    val signedVoucherRepository = remember { SignedVoucherRepository() }
-    var signedUrl by remember(voucherReference) { mutableStateOf<String?>(null) }
-    var errorMessage by remember(voucherReference) { mutableStateOf<String?>(null) }
-    var isRequestingSignedUrl by remember(voucherReference) { mutableStateOf(false) }
-    val shouldRequestSignedUrl = voucherReference.requiresSignedUrl()
-
-    LaunchedEffect(voucherReference) {
-        signedUrl = null
-        errorMessage = null
-        if (!shouldRequestSignedUrl) return@LaunchedEffect
-
-        isRequestingSignedUrl = true
-        when (val result = signedVoucherRepository.getSignedUrl(voucherReference)) {
-            is SignedVoucherResult.Success -> signedUrl = result.signedUrl
-            is SignedVoucherResult.Error -> errorMessage = result.message
-        }
-        isRequestingSignedUrl = false
-    }
-
-    val imageModel = if (shouldRequestSignedUrl) signedUrl else voucherReference
-    val painter = coil.compose.rememberAsyncImagePainter(model = imageModel)
-    val state = painter.state
-
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        if (!imageModel.isNullOrBlank()) {
-            Image(
-                painter = painter,
-                contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-
-        when (state) {
-            is coil.compose.AsyncImagePainter.State.Loading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(28.dp),
-                    color = PrimaryGreen,
-                    strokeWidth = 2.dp
-                )
-            }
-            is coil.compose.AsyncImagePainter.State.Error -> {
-                VoucherLoadErrorPreview("La URL firmada expiro o no se pudo leer el archivo.")
-            }
-            else -> Unit
-        }
-
-        if (isRequestingSignedUrl) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(28.dp),
-                color = PrimaryGreen,
-                strokeWidth = 2.dp
-            )
-        }
-
-        errorMessage?.let { message ->
-            VoucherLoadErrorPreview(message)
-        }
-    }
-}
-
-@Composable
-private fun VoucherLoadErrorPreview(message: String = "No se pudo cargar el voucher") {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(18.dp)
-    ) {
-        Icon(
-            Icons.Default.Lock,
-            contentDescription = null,
-            tint = Color(0xFFB71C1C),
-            modifier = Modifier.size(42.dp)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            "No se pudo cargar el voucher",
-            color = PrimaryDarkGreen,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            message,
-            color = Color(0xFF6A7394),
-            fontSize = 11.sp,
-            lineHeight = 14.sp
-        )
-    }
-}
-
-private fun String.requiresSignedUrl(): Boolean {
-    val value = trim()
-    if (value.startsWith("content://", ignoreCase = true) || value.startsWith("file://", ignoreCase = true)) {
-        return false
-    }
-    if (value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true)) {
-        return false
-    }
-    return true
+private fun PdfReportPreview(uriString: String, depositId: String, modifier: Modifier = Modifier) {
+    PdfPreview(uriString = uriString, depositId = depositId, modifier = modifier, label = "Documento PDF adjunto")
 }
 
 @Composable
@@ -3081,6 +3025,7 @@ private fun voucherFileName(solicitudId: String, imageUri: String): String {
 private fun Report.toVoucherCard(): VoucherCard {
     return VoucherCard(
         solicitudId = solicitudNum,
+        depositId = id,
         voucherName = voucherName ?: "Voucher_${solicitudNum.replace("#", "")}.jpg",
         imageUrl = imageUrl.orEmpty(),
         empresa = empresa,

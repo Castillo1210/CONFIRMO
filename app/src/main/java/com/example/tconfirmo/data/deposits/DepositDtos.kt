@@ -102,7 +102,22 @@ data class DepositListResponseDto(
     @SerializedName(value = "numeroOperacionBanco", alternate = ["NumeroOperacionBanco"])
     val numeroOperacionBanco: String?,
     @SerializedName(value = "fechaDeposito", alternate = ["FechaDeposito"])
-    val fechaDeposito: String?
+    val fechaDeposito: String?,
+    // Referencia cruda del voucher en GCS (NO es una URL firmada todavia).
+    // Se manda tal cual porque es solo un string ya guardado en la fila del
+    // deposito — no cuesta nada incluirlo en el listado. Quien lo consuma
+    // (SignedVoucherImage) es responsable de pedir la URL firmada bajo
+    // demanda, solo para los items que realmente se rendericen en pantalla.
+    @SerializedName(value = "imagenVoucher", alternate = ["ImagenVoucher"])
+    val imagenVoucher: String? = null,
+    // Vienen embebidos directo en el endpoint de listado (api-bridge hace el
+    // join con empresas/bancos) para que la pantalla de Reportes no tenga que
+    // pedir el detalle de cada deposito por separado solo para pintar el logo
+    // y el nombre del banco. Ver DepositRepository.getReports/enrichWithDetail.
+    @SerializedName(value = "empresa", alternate = ["Empresa"])
+    val empresa: EmpresaResponseDto? = null,
+    @SerializedName(value = "banco", alternate = ["Banco"])
+    val banco: BancoResponseDto? = null
 )
 
 data class DepositListPagedResponseDto(

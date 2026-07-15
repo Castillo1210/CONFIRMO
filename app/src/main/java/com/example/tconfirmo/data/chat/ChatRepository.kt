@@ -184,6 +184,7 @@ class ChatRepository(
     private fun Report.toVoucherCard(): VoucherCard {
         return VoucherCard(
             solicitudId = solicitudNum,
+            depositId = id,
             voucherName = voucherName ?: "Voucher_${solicitudNum.replace("#", "")}.jpg",
             imageUrl = imageUrl.orEmpty(),
             empresa = empresa,

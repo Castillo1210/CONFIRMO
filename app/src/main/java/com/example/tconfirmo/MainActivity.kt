@@ -1,6 +1,9 @@
 package com.example.tconfirmo
 
 import android.Manifest
+import android.app.AlertDialog
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -49,6 +52,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        showLastCrashIfAny()
         enableEdgeToEdge()
         FirebaseOfflineClient.initialize(applicationContext)
         appUpdateManager = AppUpdateManager(applicationContext)
@@ -144,6 +148,28 @@ class MainActivity : ComponentActivity() {
                     }
                 }
         }
+    }
+
+    // Muestra el ultimo crash guardado por CrashHandler (si hay uno) en un
+    // dialogo simple con boton "Copiar", para poder sacar el stack trace
+    // exacto sin depender de adb logcat (que en algunos celulares, ej. Honor,
+    // no devuelve nada para apps de terceros).
+    private fun showLastCrashIfAny() {
+        val crashText = CrashHandler.readLastCrash(this) ?: return
+
+        AlertDialog.Builder(this)
+            .setTitle("La app se cerro inesperadamente la ultima vez")
+            .setMessage(crashText)
+            .setPositiveButton("Copiar") { _, _ ->
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Crash Confirmo", crashText))
+                CrashHandler.clearLastCrash(this)
+            }
+            .setNegativeButton("Cerrar") { _, _ ->
+                CrashHandler.clearLastCrash(this)
+            }
+            .setCancelable(false)
+            .show()
     }
 
     private fun requestNotificationPermissionIfNeeded() {

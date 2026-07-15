@@ -8,6 +8,9 @@ import android.os.Build
 class ConfirmoApplication : Application() {
     override fun onCreate() {
         super.onCreate()
+        // Debe instalarse lo antes posible, antes de cualquier otra
+        // inicializacion, para capturar tambien crashes tempranos.
+        CrashHandler.install(this)
         createDepositsNotificationChannel()
     }
 

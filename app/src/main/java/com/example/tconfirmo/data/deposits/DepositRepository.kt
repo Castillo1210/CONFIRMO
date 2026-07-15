@@ -48,10 +48,13 @@ class DepositRepository(
         }
     }
 
+    // Solo pega contra GET /api/v1/deposits (una llamada, sin importar cuantos
+    // items tenga la pagina). empresa/banco ya vienen embebidos en cada item
+    // de la respuesta (ver DepositListResponseDto), asi que no hace falta ni
+    // el detalle por item ni los catalogos de /masters/empresas|bancos solo
+    // para poder pintar la lista.
     suspend fun getReports(daysBack: Int = 0, pageSize: Int = 100): List<Report> {
         val (desde, hasta) = reportRange(daysBack)
-        val companiesById = getCompanies().associateBy { it.id }
-        val banksById = getBanks().associateBy { it.id }
         val response = runCatching {
             depositApi.getDeposits(
                 desde = desde,
@@ -65,19 +68,29 @@ class DepositRepository(
         if (!response.isSuccessful) return emptyList()
 
         val body = response.body() ?: return emptyList()
-        val reports = mutableListOf<Report>()
-        body.items.forEachIndexed { index, item ->
-            val detail = getDepositDetail(item.id)
-            reports += item.toReport(
+        val vendedor = sessionManager.getFullName().orEmpty()
+        return body.items.mapIndexed { index, item ->
+            item.toReport(
                 solicitudNum = "#${(index + 1).toString().padStart(3, '0')}",
-                imageUrl = detail?.imagenUrl ?: detail?.imagenVoucher,
-                mensajeValidacion = detail?.motivoRechazo,
-                empresa = detail?.empresaId.resolveCompanyName(companiesById),
-                banco = detail?.bancoId.resolveBankName(banksById),
-                vendedor = sessionManager.getFullName().orEmpty()
+                vendedor = vendedor
             )
         }
-        return reports
+    }
+
+    // El endpoint de listado ya trae la referencia cruda del voucher
+    // (imagenVoucher) y el reporte usa SignedVoucherImage para resolverla a
+    // una URL firmada bajo demanda — no hace falta detalle para mostrar la
+    // imagen. Lo que SI falta en el listado es el motivo de rechazo (no viene
+    // a proposito, para no cargar texto largo en cada fila). Esto pide el
+    // detalle puntual UNA sola vez, bajo demanda, solo cuando el usuario abre
+    // un reporte especifico o lo va a regularizar — nunca en bucle por cada
+    // item de la lista.
+    suspend fun enrichWithDetail(report: Report): Report {
+        val detail = getDepositDetail(report.id) ?: return report
+        return report.copy(
+            imageUrl = detail.imagenUrl ?: detail.imagenVoucher,
+            mensajeValidacion = detail.motivoRechazo ?: report.mensajeValidacion
+        )
     }
 
     private suspend fun getDepositDetail(id: String): DepositResponseDto? {
@@ -156,41 +169,31 @@ class DepositRepository(
 
     private fun DepositListResponseDto.toReport(
         solicitudNum: String,
-        imageUrl: String?,
-        mensajeValidacion: String?,
-        empresa: String,
-        banco: String,
         vendedor: String
     ): Report {
         val dateTime = fechaRegistro.toBackendDate()
         return Report(
             id = id,
             solicitudNum = solicitudNum,
-            empresa = empresa.ifBlank { "Empresa no disponible" },
+            empresa = empresa?.nombre.orEmpty().ifBlank { "Empresa no disponible" },
             cliente = cliente.orEmpty(),
-            banco = banco.ifBlank { "Banco no disponible" },
+            banco = banco?.nombre.orEmpty().ifBlank { "Banco no disponible" },
             fecha = dateTime?.let { DISPLAY_DATE_FORMAT.format(it) } ?: "",
             hora = dateTime?.let { DISPLAY_TIME_FORMAT.format(it) } ?: "",
             status = estado.toReportStatus(),
             importe = if (monto > 0.0) "$moneda ${monto.formatAmount()}" else null,
             operacion = numeroOperacionBanco ?: numeroOperacion,
-            imageUrl = imageUrl,
+            // Referencia cruda (no firmada) del voucher: ya viene gratis en el
+            // listado. SignedVoucherImage la resuelve a URL firmada bajo
+            // demanda, solo para lo que realmente se muestra en pantalla
+            // (reporte abierto o burbuja de chat visible).
+            imageUrl = imagenVoucher,
             voucherName = "Voucher_${solicitudNum.replace("#", "")}.jpg",
-            mensajeValidacion = mensajeValidacion,
+            // El motivo de rechazo si se llena bajo demanda via
+            // enrichWithDetail() cuando el usuario abre el detalle puntual.
+            mensajeValidacion = null,
             solicitadoPor = vendedor.ifBlank { null }
         )
-    }
-
-    private fun String?.resolveCompanyName(companiesById: Map<String, EmpresaResponseDto>): String {
-        val id = this?.trim().orEmpty()
-        if (id.isBlank()) return ""
-        return companiesById[id]?.nombre.orEmpty()
-    }
-
-    private fun String?.resolveBankName(banksById: Map<String, BancoResponseDto>): String {
-        val id = this?.trim().orEmpty()
-        if (id.isBlank()) return ""
-        return banksById[id]?.nombre.orEmpty()
     }
 
     private fun String.toReportStatus(): ReportStatus {

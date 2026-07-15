@@ -6,6 +6,20 @@ enum class ReportStatus {
 
 data class VoucherCard(
     val solicitudId: String,
+    // Guid real del deposito (distinto de solicitudId, que es solo el
+    // codigo mostrado "#001"). Se usa para armar la URL del endpoint de
+    // imagen (GET /api/v1/deposits/{depositId}/image).
+    //
+    // NULLABLE A PROPOSITO, aunque conceptualmente siempre deberia existir:
+    // los mensajes de chat cacheados localmente (ChatCache, via Gson) de
+    // antes de que este campo existiera se deserializan sin pasar por el
+    // constructor de Kotlin -- Gson usa reflection y deja este campo en null
+    // igual, sin importar que el tipo diga que no puede serlo. Si se declara
+    // no-nulo, esos mensajes viejos revientan la app con un
+    // NullPointerException apenas se intentan pintar (esto es justo lo que
+    // pasaba: crash al hacer scroll en el chat, en tarjetas de voucher ya
+    // guardadas de antes de esta actualizacion).
+    val depositId: String? = null,
     val voucherName: String,
     val imageUrl: String,
     val empresa: String,

@@ -35,7 +35,6 @@ import com.example.tconfirmo.data.StructuredBotData
 import com.example.tconfirmo.ui.theme.DestructiveRed
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.example.tconfirmo.R
 import com.example.tconfirmo.data.ChatMessage
 import com.example.tconfirmo.data.MessageFrom
@@ -69,22 +68,33 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
     ) {
         Column {
             Box {
-                if (card.imageUrl.isPdfVoucher()) {
+                if (card.imageUrl.isBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                            .background(Color(0xFFF6F7FB))
+                    )
+                } else if (card.imageUrl.isPdfVoucher()) {
                     PdfVoucherPreview(
                         uriString = card.imageUrl,
+                        depositId = card.depositId,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(360.dp)
                     )
                 } else {
-                    AsyncImage(
-                        model = card.imageUrl,
+                    // card.imageUrl (la referencia cruda de GCS) solo se usa para saber
+                    // si hay voucher y si es PDF; la imagen misma se pide por depositId
+                    // via el endpoint redirect (GET /deposits/{id}/image), que firma una
+                    // URL fresca en cada visita y nunca queda expirada del lado del cliente.
+                    SignedVoucherImage(
+                        depositId = card.depositId,
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(320.dp)
-                            .background(Color(0xFFF6F7FB)),
-                        contentScale = ContentScale.Crop
+                            .background(Color(0xFFF6F7FB))
                     )
                 }
                 Surface(
@@ -182,8 +192,8 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
 }
 
 @Composable
-private fun PdfVoucherPreview(uriString: String, modifier: Modifier = Modifier) {
-    PdfPreview(uriString = uriString, modifier = modifier, label = "PDF adjunto")
+private fun PdfVoucherPreview(uriString: String, depositId: String?, modifier: Modifier = Modifier) {
+    PdfPreview(uriString = uriString, depositId = depositId, modifier = modifier, label = "PDF adjunto")
 }
 
 private fun String.isPdfVoucher(): Boolean {
@@ -485,6 +495,7 @@ fun MessageBubblePreview() {
                     from = MessageFrom.USER,
                     voucherCard = VoucherCard(
                         solicitudId = "#001",
+                        depositId = "preview-deposit-id",
                         voucherName = "Voucher_BCP.jpg",
                         imageUrl = "https://images.unsplash.com/photo-1554224155-6726b3ff858f",
                         empresa = "",
