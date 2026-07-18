@@ -44,7 +44,18 @@ data class ChatMessage(
     val imageUrl: String? = null,
     val voucherCard: VoucherCard? = null,
     val structuredData: StructuredBotData? = null, // Para mensajes de confirmación/rechazo
-    val replyToSolicitudId: String? = null,        // Vincula la respuesta del bot al voucher (#001, #002…)
+    // FUENTE DE VERDAD para vincular la respuesta del bot al voucher que la
+    // origino: el GUID real y estable del deposito (mismo valor que
+    // Report.id / VoucherCard.depositId). Todo matching/lookup de "a que
+    // voucher responde este mensaje" debe hacerse contra este campo.
+    val replyToDepositId: String? = null,
+    // Etiqueta de presentacion (#001, #002...) capturada al momento de crear
+    // el mensaje. Es posicional y se recalcula cada vez que se refresca la
+    // lista de reports (ordenados por FechaRegistro DESC), asi que un mismo
+    // numero puede terminar apuntando a otro deposito despues de un refresh.
+    // NO usar para matching/lookup -- solo como texto de fallback en la UI
+    // mientras replyToDepositId todavia no se pudo resolver contra "reports".
+    val replyToSolicitudId: String? = null,
     val date: String = "",
     val time: String,
     val status: MessageStatus? = null,

@@ -329,6 +329,8 @@ fun MessageBubble(
     reports: List<Report> = emptyList(),
     isSearchMatch: Boolean = false,
     onVoucherClick: (VoucherCard) -> Unit = {},
+    // El String recibido es el depositId (GUID) del voucher referenciado, no
+    // el solicitudNum posicional.
     onReplyClick: (String) -> Unit = {}
 ) {
     val isUser = message.from == MessageFrom.USER
@@ -384,14 +386,17 @@ fun MessageBubble(
                     Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                         // Reply quote: si el mensaje del bot referencia un voucher,
                         // muestra una etiqueta al estilo WhatsApp con el número de solicitud.
-                        if (!isUser && message.replyToSolicitudId != null) {
+                        // FIX citas cruzadas: el guard y el click usan replyToDepositId
+                        // (GUID estable del deposito), no replyToSolicitudId (numero
+                        // posicional "#001" que se recalcula en cada refresh de reports).
+                        if (!isUser && message.replyToDepositId != null) {
                             Surface(
                                 color = PrimaryDarkGreen.copy(alpha = 0.08f),
                                 shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(bottom = 8.dp)
-                                    .clickable { onReplyClick(message.replyToSolicitudId) }
+                                    .clickable { onReplyClick(message.replyToDepositId) }
                             ) {
                                 Row(
                                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -416,10 +421,15 @@ fun MessageBubble(
                                         // para el vendedor); si por algun motivo no se
                                         // encuentra el reporte (aun no llego el refresh),
                                         // cae de vuelta al numero de solicitud.
-                                        text = reports.firstOrNull { it.solicitudNum == message.replyToSolicitudId }
+                                        // FIX citas cruzadas: el lookup se hace por id de
+                                        // deposito (GUID estable), no por solicitudNum
+                                        // (numero posicional que se recalcula en cada
+                                        // refresh y puede terminar apuntando a otro reporte).
+                                        text = reports.firstOrNull { it.id == message.replyToDepositId }
                                             ?.cliente
                                             ?.takeIf { it.isNotBlank() }
-                                            ?: "Solicitud ${message.replyToSolicitudId}",
+                                            ?: message.replyToSolicitudId?.let { "Solicitud $it" }
+                                            ?: "Solicitud",
                                         color = PrimaryDarkGreen,
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.SemiBold

@@ -202,12 +202,17 @@ fun MainScreen(
     // mostrarse — los eventos de tiempo real (DepositStatusChanged, etc.) solo
     // actualizaban "reports", nunca los ChatMessage ya renderizados. Esto
     // propaga el nuevo estado tambien a la tarjeta del chat, buscandola por
-    // solicitudId (unico por deposito).
-    fun updateVoucherCardStatus(solicitudNum: String?, newStatus: ReportStatus) {
-        if (solicitudNum == null) return
+    // depositId (GUID estable, unico por deposito).
+    //
+    // FIX citas cruzadas: antes matcheaba por solicitudId (numero posicional
+    // "#001" que se recalcula en cada refresh de "reports"), lo que podia
+    // actualizar la tarjeta equivocada despues de un refresh. Ahora matchea
+    // por depositId, que nunca cambia para un mismo deposito.
+    fun updateVoucherCardStatus(depositId: String?, newStatus: ReportStatus) {
+        if (depositId == null) return
         messages = messages.map { message ->
             val card = message.voucherCard
-            if (card != null && card.solicitudId == solicitudNum && card.status != newStatus) {
+            if (card != null && card.depositId == depositId && card.status != newStatus) {
                 message.copy(voucherCard = card.copy(status = newStatus))
             } else {
                 message
@@ -266,6 +271,7 @@ fun MainScreen(
                                     from = realtimeMessage?.senderType.toMessageFrom(),
                                     text = content,
                                     voucherCard = null,
+                                    replyToDepositId = null,
                                     replyToSolicitudId = null,
                                     date = createdAt.toChatDate(),
                                     time = createdAt.toChatTime(),
@@ -293,17 +299,21 @@ fun MainScreen(
                     // registerDepositMessage), que dispara este mismo evento en tiempo real
                     // con el id real del servidor. Como los ids nunca coinciden, el chequeo
                     // "messages.none { it.id == messageId }" nunca detectaba el duplicado.
-                    // Para mensajes de tipo "image" (tarjetas de voucher), el solicitudId
-                    // (p.ej. "#003") es unico por deposito, asi que se usa como llave real
-                    // de deduplicacion en vez del id del mensaje.
+                    // Para mensajes de tipo "image" (tarjetas de voucher), el depositId
+                    // (GUID) es unico por deposito, asi que se usa como llave real de
+                    // deduplicacion en vez del id del mensaje. (Antes se usaba
+                    // voucherCard.solicitudId, un numero posicional que no es una llave
+                    // estable entre refreshes.)
                     val isDuplicateVoucherCard = voucherCard != null &&
-                        messages.any { it.voucherCard?.solicitudId == voucherCard.solicitudId }
+                        messages.any { it.voucherCard?.depositId == voucherCard.depositId }
                     if (shouldShowMessage && messages.none { it.id == messageId } && !isDuplicateVoucherCard) {
                         val createdAt = realtimeMessage?.createdAt ?: event.createdAt
                         // FIX: vincula el mensaje del sistema/bot al voucher que le dio
-                        // origen (mismo criterio que ChatRepository.toChatMessage): solo
-                        // los mensajes que NO son la propia tarjeta de imagen llevan
-                        // replyToSolicitudId, resuelto contra el deposito reportado.
+                        // origen: solo los mensajes que NO son la propia tarjeta de imagen
+                        // llevan replyToDepositId, que es directamente el depositId del
+                        // evento (GUID estable) -- no se resuelve contra solicitudNum.
+                        val replyToDepositId = if (messageType != "image") depositId else null
+                        // Etiqueta de fallback para la UI (ver ChatRepository.toChatMessage).
                         val replyToSolicitudId = if (messageType != "image") {
                             reports.firstOrNull { it.id == depositId }?.solicitudNum
                         } else {
@@ -314,6 +324,7 @@ fun MainScreen(
                             from = realtimeMessage?.senderType.toMessageFrom(),
                             text = if (messageType == "image") null else content,
                             voucherCard = voucherCard,
+                            replyToDepositId = replyToDepositId,
                             replyToSolicitudId = replyToSolicitudId,
                             date = createdAt.toChatDate(),
                             time = createdAt.toChatTime(),
@@ -324,7 +335,6 @@ fun MainScreen(
                 is RealtimeEvent.DepositStatusChanged -> {
                     val depositId = event.depositId ?: return@collect
                     val status = (event.status ?: event.deposit?.estado).toReportStatus() ?: return@collect
-                    val solicitudNum = reports.firstOrNull { it.id == depositId }?.solicitudNum
                     reports = reports.map { report ->
                         if (report.id == depositId) {
                             report.copy(
@@ -336,12 +346,11 @@ fun MainScreen(
                             report
                         }
                     }
-                    updateVoucherCardStatus(solicitudNum, status)
+                    updateVoucherCardStatus(depositId, status)
                     refreshReportsFromApi()
                 }
                 is RealtimeEvent.DepositUpdated -> {
                     val depositId = event.depositId ?: return@collect
-                    val solicitudNum = reports.firstOrNull { it.id == depositId }?.solicitudNum
                     val newStatus = event.deposit?.estado.toReportStatus()
                     reports = reports.map { report ->
                         if (report.id == depositId) {
@@ -354,14 +363,13 @@ fun MainScreen(
                             report
                         }
                     }
-                    if (newStatus != null) updateVoucherCardStatus(solicitudNum, newStatus)
+                    if (newStatus != null) updateVoucherCardStatus(depositId, newStatus)
                     refreshReportsFromApi()
                 }
                 is RealtimeEvent.DepositNotification -> {
                     val depositId = event.depositId ?: return@collect
                     val status = event.status.toReportStatus()
-                    val solicitudNum = reports.firstOrNull { it.id == depositId }?.solicitudNum
-                    if (status != null) updateVoucherCardStatus(solicitudNum, status)
+                    if (status != null) updateVoucherCardStatus(depositId, status)
                     reports = reports.map { report ->
                         if (report.id == depositId) {
                             report.copy(
@@ -1073,8 +1081,10 @@ fun ChatTab(
                                 reports = reports,
                                 isSearchMatch = index == activeMatchIndex,
                                 onVoucherClick = { openedVoucher = it },
-                                onReplyClick = { solicitudId ->
-                                    openedVoucher = reports.find { it.solicitudNum == solicitudId }?.toVoucherCard()
+                                // FIX citas cruzadas: onReplyClick ahora recibe el depositId
+                                // (GUID estable) del voucher, no el solicitudNum posicional.
+                                onReplyClick = { depositId ->
+                                    openedVoucher = reports.find { it.id == depositId }?.toVoucherCard()
                                 }
                             )
                         }

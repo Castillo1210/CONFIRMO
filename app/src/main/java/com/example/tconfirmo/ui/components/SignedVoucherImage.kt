@@ -1,6 +1,13 @@
 package com.example.tconfirmo.ui.components
 
 import android.net.Uri
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -9,14 +16,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -28,7 +38,6 @@ import coil.compose.SubcomposeAsyncImageContent
 import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.session.SessionManager
 import com.example.tconfirmo.ui.theme.PrimaryDarkGreen
-import com.example.tconfirmo.ui.theme.PrimaryGreen
 
 // Componente compartido para mostrar el voucher de un deposito ya persistido
 // (detalle de reporte en MainScreen o burbuja de chat en ChatComponents).
@@ -88,20 +97,62 @@ fun SignedVoucherImage(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Fit,
                 loading = {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(28.dp),
-                        color = PrimaryGreen,
-                        strokeWidth = 2.dp
-                    )
+                    VoucherImageShimmer(modifier = Modifier.fillMaxSize())
                 },
                 error = {
-                    VoucherLoadErrorPreview("No se pudo leer el archivo del voucher.")
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        VoucherLoadErrorPreview("No se pudo leer el archivo del voucher.")
+                    }
                 },
                 success = {
                     SubcomposeAsyncImageContent()
                 }
             )
         }
+    }
+}
+
+// Placeholder mientras Coil todavia esta pidiendo/decodificando la imagen.
+// Antes esto era solo un CircularProgressIndicator de 28dp sin fillMaxSize,
+// asi que quedaba chiquito y sin centrar bien dentro de la tarjeta de
+// 320dp de alto (se veia como un espacio vacio con un puntito perdido).
+// Ahora se llena todo el espacio con un shimmer (barrido de gradiente en
+// loop) mas un icono de imagen atenuado al centro, mismo patron de
+// skeleton loading que usan apps como WhatsApp/Instagram para listas de
+// medios.
+@Composable
+fun VoucherImageShimmer(modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "voucherShimmer")
+    val translateAnim by transition.animateFloat(
+        initialValue = -600f,
+        targetValue = 600f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1100, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "shimmerTranslate"
+    )
+
+    val shimmerBrush = Brush.linearGradient(
+        colors = listOf(
+            Color(0xFFEDEFF6),
+            Color(0xFFF9FAFC),
+            Color(0xFFEDEFF6)
+        ),
+        start = Offset(translateAnim - 300f, 0f),
+        end = Offset(translateAnim + 300f, 300f)
+    )
+
+    Box(
+        modifier = modifier.background(shimmerBrush),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Default.Image,
+            contentDescription = null,
+            tint = Color(0xFFC7CCDE),
+            modifier = Modifier.size(48.dp)
+        )
     }
 }
 

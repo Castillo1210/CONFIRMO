@@ -138,6 +138,10 @@ class ChatRepository(
     private fun ChatMessageResponseDto.toChatMessage(report: Report? = null): ChatMessage? {
         val cleanMessageType = messageType.trim().lowercase(Locale.ROOT)
         val voucherCard = if (cleanMessageType == "image") report?.toVoucherCard() else null
+        // Fuente de verdad para el matching: el GUID estable del deposito
+        // (report.id), no el numero posicional "#001".
+        val replyToDepositId = if (cleanMessageType != "image") report?.id else null
+        // Solo como etiqueta de fallback para la UI; nunca usar para matching.
         val replyToSolicitudId = if (cleanMessageType != "image") report?.solicitudNum else null
         val textContent = if (cleanMessageType == "text" || cleanMessageType == "direct" || cleanMessageType == "status_change") {
             content
@@ -152,6 +156,7 @@ class ChatRepository(
             from = senderType.toMessageFrom(),
             text = textContent,
             voucherCard = voucherCard,
+            replyToDepositId = replyToDepositId,
             replyToSolicitudId = replyToSolicitudId,
             date = createdAt.toFormattedBackendDate("dd/MM/yyyy") ?: todayDate(),
             time = createdAt.toFormattedBackendDate("HH:mm") ?: currentTime(),
@@ -172,6 +177,7 @@ class ChatRepository(
             from = senderType.toMessageFrom(),
             text = cleanContent,
             voucherCard = null,
+            replyToDepositId = null,
             replyToSolicitudId = null,
             date = createdAt.toFormattedBackendDate("dd/MM/yyyy") ?: todayDate(),
             time = createdAt.toFormattedBackendDate("HH:mm") ?: currentTime(),
