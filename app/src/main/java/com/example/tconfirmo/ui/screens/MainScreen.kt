@@ -108,6 +108,7 @@ private const val KEY_REPORT_DAYS_BACK = "report_days_back"
 fun MainScreen(
     initialSelectedTab: Int = 0,
     realtimeClient: RealtimeClient? = null,
+    resumeSignal: Int = 0,
     sharedVoucherUris: List<Uri> = emptyList(),
     onSharedVouchersConsumed: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
@@ -222,6 +223,21 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         refreshReportsFromApi()
+    }
+
+    // BUG "primer mensaje perdido": MainActivity incrementa resumeSignal cada
+    // vez que la app vuelve a primer plano (onResume, salvo el primero, que ya
+    // cubre el LaunchedEffect(Unit) de arriba). Sin esto, el chat vendedor solo
+    // se sincronizaba una vez por proceso -- si el primer mensaje de una
+    // conversacion nueva llegaba con el socket de tiempo real caido (app en
+    // background, no cerrada), quedaba persistido en el backend pero invisible
+    // hasta un cold start real. refreshReportsFromApi() ya trae el historial
+    // completo (getVendedorHistory sin cursor "since"), asi que alcanza con
+    // volver a llamarla en cada resume real.
+    LaunchedEffect(resumeSignal) {
+        if (resumeSignal > 0) {
+            refreshReportsFromApi()
+        }
     }
 
     LaunchedEffect(realtimeClient) {

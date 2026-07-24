@@ -1,8 +1,8 @@
 {
-  "versionCode": 12,
-  "versionName": "1.11",
-  "updatedAt": "2026-07-13",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.11.apk",
-  "releaseNotes": "Nueva version de Confirmo con mejoras de mantenimiento y actualizacion de la app.",
+  "versionCode": 13,
+  "versionName": "1.12",
+  "updatedAt": "2026-07-24",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.12.apk",
+  "releaseNotes": "Correccion: el chat directo con finanzas ya no pierde el primer mensaje de una conversacion nueva cuando la app estaba en segundo plano. Ademas, mejoras generales de manejo de errores y del chat.",
   "required": true
 }

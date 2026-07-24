@@ -47,6 +47,20 @@ class MainActivity : ComponentActivity() {
     private lateinit var realtimeClient: RealtimeClient
     private lateinit var fcmTokenProvider: FcmTokenProvider
 
+    // BUG: el chat vendedor (mensajes directos finanzas <-> vendedor) solo se
+    // sincronizaba una vez por proceso, en el LaunchedEffect(Unit) de
+    // MainScreen (disparado por este onCreate). Si el primer mensaje de una
+    // conversacion nueva llega con el socket de tiempo real caido (app en
+    // segundo plano, no cerrada del todo), el backend lo persiste bien pero
+    // nadie lo escucha en vivo, y como el proceso nunca se reinicia (solo se
+    // trae a primer plano), ese LaunchedEffect(Unit) no se vuelve a correr
+    // -- el mensaje queda perdido hasta un cold start real. resumeSignal se
+    // incrementa en cada onResume (excepto el primero, que ya cubre onCreate)
+    // y MainScreen lo usa para volver a pedir el historial cada vez que la
+    // app vuelve a primer plano.
+    private var resumeSignal by mutableStateOf(0)
+    private var hasResumedOnce = false
+
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
 
@@ -79,6 +93,7 @@ class MainActivity : ComponentActivity() {
                 AppNavigation(
                     isLoggedIn = isLoggedIn,
                     realtimeClient = realtimeClient,
+                    resumeSignal = resumeSignal,
                     sharedVoucherUris = sharedVoucherUris,
                     onSharedVouchersConsumed = { sharedVoucherUris = emptyList() },
                     onLoginSuccess = {
@@ -122,6 +137,20 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         sharedVoucherUris = sharedVoucherUris + intent.extractSharedVoucherUris()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // El primer onResume del proceso llega justo despues de onCreate y ya
+        // esta cubierto por el LaunchedEffect(Unit) de MainScreen -- solo nos
+        // interesan los onResume "de verdad" (la app vuelve de segundo plano).
+        if (!hasResumedOnce) {
+            hasResumedOnce = true
+            return
+        }
+        if (isLoggedIn) {
+            resumeSignal++
+        }
     }
 
     override fun onDestroy() {
@@ -225,6 +254,7 @@ class MainActivity : ComponentActivity() {
 fun AppNavigation(
     isLoggedIn: Boolean = false,
     realtimeClient: RealtimeClient? = null,
+    resumeSignal: Int = 0,
     sharedVoucherUris: List<Uri> = emptyList(),
     onSharedVouchersConsumed: () -> Unit = {},
     onLoginSuccess: () -> Unit = {},
@@ -246,6 +276,7 @@ fun AppNavigation(
         composable("main") {
                 MainScreen(
                     realtimeClient = realtimeClient,
+                    resumeSignal = resumeSignal,
                     sharedVoucherUris = sharedVoucherUris,
                     onSharedVouchersConsumed = onSharedVouchersConsumed,
                     onCheckForUpdates = onCheckForUpdates,
