@@ -34,7 +34,12 @@ data class DepositDraft(
     val cliente: String,
     val imageUri: String,
     val empresaId: String? = null,
-    val bancoId: String? = null
+    val bancoId: String? = null,
+    // Si no es null, este draft viene del boton "Regularizar" de un deposito
+    // RECHAZADO -- al enviarlo hay que llamar a
+    // DepositRepository.regularizeDepositDetailed(regularizeDepositId, draft)
+    // en vez de crear un deposito nuevo (ver MainScreen.kt, onSubmit).
+    val regularizeDepositId: String? = null
 )
 
 data class ChatMessage(

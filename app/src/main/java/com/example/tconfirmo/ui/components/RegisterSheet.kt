@@ -112,7 +112,11 @@ private data class DepositCartItem(
     val banco: String,
     val empresaId: String?,
     val bancoId: String?,
-    val cliente: String
+    val cliente: String,
+    // Si no es null, este item viene de "Regularizar" un depósito RECHAZADO
+    // -- se propaga hasta el DepositDraft final para que MainScreen.kt sepa
+    // llamar a regularizeDepositDetailed en vez de crear un depósito nuevo.
+    val regularizeDepositId: String? = null
 )
 
 private sealed interface VoucherImage {
@@ -141,6 +145,7 @@ fun RegisterSheet(
     var draftBanco by remember { mutableStateOf("") }
     var draftBancoId by remember { mutableStateOf<String?>(null) }
     var draftCliente by remember { mutableStateOf("") }
+    var draftRegularizeDepositId by remember { mutableStateOf<String?>(null) }
     var editingItemId by remember { mutableStateOf<String?>(null) }
     var pendingSubmit by remember { mutableStateOf<List<DepositDraft>>(emptyList()) }
     // FIX duplicados: recuerda el ULTIMO lote ya enviado a onSubmit, para que
@@ -170,6 +175,7 @@ fun RegisterSheet(
         draftBanco = ""
         draftBancoId = null
         draftCliente = ""
+        draftRegularizeDepositId = null
         editingItemId = null
     }
 
@@ -195,6 +201,7 @@ fun RegisterSheet(
         draftBanco = item.banco
         draftBancoId = item.bancoId
         draftCliente = item.cliente
+        draftRegularizeDepositId = item.regularizeDepositId
         editingItemId = item.id
         mode = RegisterMode.Form
     }
@@ -347,7 +354,8 @@ fun RegisterSheet(
                     banco = draft.banco,
                     empresaId = draft.empresaId,
                     bancoId = draft.bancoId,
-                    cliente = draft.cliente
+                    cliente = draft.cliente,
+                    regularizeDepositId = draft.regularizeDepositId
                 )
             }
             if (incomingItems.isNotEmpty()) {
@@ -361,6 +369,7 @@ fun RegisterSheet(
                 draftBanco = draft.banco
                 draftBancoId = draft.bancoId
                 draftCliente = draft.cliente
+                draftRegularizeDepositId = draft.regularizeDepositId
                 editingItemId = null
                 mode = RegisterMode.Form
             }
@@ -407,7 +416,8 @@ fun RegisterSheet(
                             cliente = it.cliente,
                             imageUri = it.image.asModelString(),
                             empresaId = it.empresaId,
-                            bancoId = it.bancoId
+                            bancoId = it.bancoId,
+                            regularizeDepositId = it.regularizeDepositId
                         )
                     }
                     mode = RegisterMode.Success
@@ -442,7 +452,8 @@ fun RegisterSheet(
                             banco = draftBanco,
                             empresaId = draftEmpresaId ?: sessionManager.getEmpresaId(),
                             bancoId = draftBancoId ?: bancoIdsByName[draftBanco],
-                            cliente = draftCliente
+                            cliente = draftCliente,
+                            regularizeDepositId = draftRegularizeDepositId
                         )
                     } else {
                         items.map {
@@ -453,7 +464,8 @@ fun RegisterSheet(
                                     banco = draftBanco,
                                     empresaId = draftEmpresaId ?: sessionManager.getEmpresaId(),
                                     bancoId = draftBancoId ?: bancoIdsByName[draftBanco],
-                                    cliente = draftCliente
+                                    cliente = draftCliente,
+                                    regularizeDepositId = draftRegularizeDepositId
                                 )
                             } else {
                                 it

@@ -5,6 +5,7 @@ import retrofit2.Response
 import retrofit2.http.GET
 import retrofit2.http.Multipart
 import retrofit2.http.POST
+import retrofit2.http.PUT
 import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
@@ -44,4 +45,18 @@ interface DepositApi {
     suspend fun createDepositsBatch(
         @retrofit2.http.Body request: BatchDepositsRequestDto
     ): Response<BatchDepositsResponseDto>
+
+    // PUT /{id}/regularize -- reabre un deposito RECHAZADO existente (vuelve a
+    // Estado "recibido" y lo reencola para reprocesar), a diferencia de
+    // createDeposit que siempre crea uno nuevo. El backend lo expone como
+    // [FromForm] (multipart), mismo contrato que createDeposit.
+    @Multipart
+    @PUT("api/v1/deposits/{id}/regularize")
+    suspend fun regularizeDeposit(
+        @Path("id") id: String,
+        @Part("Cliente") cliente: RequestBody?,
+        @Part("EmpresaId") empresaId: RequestBody?,
+        @Part("BancoId") bancoId: RequestBody?,
+        @Part("ImagenBase64") imagenBase64: RequestBody
+    ): Response<DepositCreateResponseDto>
 }

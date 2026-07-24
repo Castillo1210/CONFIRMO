@@ -641,7 +641,13 @@ fun MainScreen(
                                         empresa = enriched.empresa,
                                         banco = enriched.banco,
                                         cliente = enriched.cliente,
-                                        imageUri = enriched.imageUrl.orEmpty()
+                                        imageUri = enriched.imageUrl.orEmpty(),
+                                        // Marca este draft como una regularizacion del
+                                        // deposito rechazado "enriched.id" -- onSubmit
+                                        // (mas abajo) usa esto para llamar a
+                                        // regularizeDepositDetailed en vez de crear un
+                                        // deposito nuevo.
+                                        regularizeDepositId = enriched.id
                                     )
                                 )
                                 registerResetKey += 1
@@ -750,7 +756,34 @@ fun MainScreen(
                 registerScope.launch {
                   try {
                     val errors = mutableListOf<String>()
-                    val submitted = solicitudes.mapNotNull { solicitud ->
+
+                    // Regularizaciones (drafts que vienen del boton "Regularizar" de un
+                    // rechazado, ver onRegularize mas arriba): van por PUT /regularize
+                    // sobre el deposito EXISTENTE, no crean uno nuevo. El backend ya
+                    // agrega su propio mensaje de sistema al chat ("Regularizaste este
+                    // deposito..."), asi que acá no se registra ninguna tarjeta nueva --
+                    // alcanza con refrescar "reports" para que el estado vuelva a
+                    // "Pendiente" en la lista.
+                    val (regularizaciones, nuevos) = solicitudes.partition { it.regularizeDepositId != null }
+                    var regularizadosOk = 0
+                    regularizaciones.forEach { solicitud ->
+                        val depositId = solicitud.regularizeDepositId!!
+                        when (val result = depositRepository.regularizeDepositDetailed(depositId, solicitud)) {
+                            is DepositCreateResult.Success -> regularizadosOk += 1
+                            is DepositCreateResult.Error -> errors += result.message
+                        }
+                    }
+                    if (regularizadosOk > 0) {
+                        refreshReportsFromApi()
+                        Toast.makeText(
+                            context,
+                            if (regularizadosOk == 1) "Depósito regularizado. Será procesado nuevamente."
+                            else "$regularizadosOk depósitos regularizados. Serán procesados nuevamente.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+
+                    val submitted = nuevos.mapNotNull { solicitud ->
                         when (val result = depositRepository.createDepositDetailed(solicitud)) {
                             is DepositCreateResult.Success -> solicitud to result.depositId
                             is DepositCreateResult.Error -> {
@@ -761,15 +794,27 @@ fun MainScreen(
                     }
 
                     if (submitted.isEmpty()) {
-                        Toast.makeText(
-                            context,
-                            errors.firstOrNull() ?: "No se pudo registrar el deposito en la API.",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        if (regularizadosOk == 0) {
+                            Toast.makeText(
+                                context,
+                                errors.firstOrNull() ?: "No se pudo registrar el deposito en la API.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        if (nuevos.isEmpty()) {
+                            // Todo lo que había en el lote era regularización y ya se
+                            // procesó arriba (con éxito o con su propio toast de error) --
+                            // no hay depósitos nuevos que registrar, se cierra el sheet
+                            // igual que el flujo normal.
+                            showRegisterSheet = false
+                            updatePendingSharedVouchers(emptyList())
+                            registerInitialDrafts = emptyList()
+                            registerResetKey += 1
+                        }
                         return@launch
                     }
 
-                    if (submitted.size < solicitudes.size) {
+                    if (submitted.size < nuevos.size) {
                         Toast.makeText(
                             context,
                             errors.firstOrNull() ?: "Algunos depositos no se pudieron registrar.",

@@ -132,9 +132,46 @@ class DepositRepository(
         }
     }
 
+    // Reabre un deposito RECHAZADO existente (PUT /{id}/regularize) en vez de
+    // crear uno nuevo -- a diferencia de createDepositDetailed, el id ya
+    // existe de antes (es el mismo deposito rechazado). El backend lo vuelve
+    // a poner en Estado "recibido" y lo reencola para reprocesar.
+    suspend fun regularizeDepositDetailed(depositId: String, draft: DepositDraft): DepositCreateResult {
+        val imageBase64 = runCatching { readUriAsBase64(draft.imageUri) }.getOrElse { error ->
+            return DepositCreateResult.Error("No se pudo leer el voucher: ${error.message ?: "archivo no disponible"}")
+        }
+
+        val response = runCatching {
+            depositApi.regularizeDeposit(
+                id = depositId,
+                cliente = draft.cliente.toNullableRequestBody(),
+                empresaId = (draft.empresaId ?: sessionManager.getEmpresaId()).toNullableRequestBody(),
+                bancoId = draft.bancoId.toNullableRequestBody(),
+                imagenBase64 = imageBase64.toPlainRequestBody()
+            )
+        }.getOrElse { error ->
+            return DepositCreateResult.Error("No se pudo conectar con la API: ${error.message ?: "error de red"}")
+        }
+
+        return if (response.isSuccessful) {
+            DepositCreateResult.Success(depositId)
+        } else {
+            DepositCreateResult.Error(response.depositErrorMessage())
+        }
+    }
+
+    // FIX "No se pudo leer el voucher": al regularizar un rechazado, el
+    // formulario se precarga con la URL FIRMADA de Google Cloud Storage del
+    // voucher original (https://...), no con un archivo local -- eso viene
+    // de enrichWithDetail() / DepositResponseDto.imagenUrl. ContentResolver
+    // (rama "else" de abajo) solo sabe abrir esquemas content:///file://, asi
+    // que una URL https:// caia ahi y explotaba con una excepcion generica.
+    // Ahora se descarga por HTTP antes de convertir a Base64 -- la URL ya
+    // viene firmada por el backend, no hace falta autenticacion adicional.
     private suspend fun readUriAsBase64(uriString: String): String = withContext(Dispatchers.IO) {
         val uri = Uri.parse(uriString)
         val bytes = when {
+            uri.scheme == "http" || uri.scheme == "https" -> java.net.URL(uriString).openStream().use { it.readBytes() }
             uri.scheme.isNullOrBlank() -> File(uriString).readBytes()
             uri.scheme == "file" -> File(uri.path.orEmpty()).readBytes()
             else -> context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
