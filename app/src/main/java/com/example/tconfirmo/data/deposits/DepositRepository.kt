@@ -233,10 +233,20 @@ class DepositRepository(
         )
     }
 
+    // IMPORTANTE: debe reconocer el mismo set de valores de "estado" que el
+    // backend puede enviar, igual que la funcion equivalente usada para los
+    // eventos de tiempo real (ver String?.toReportStatus() en MainScreen.kt).
+    // Antes esta version solo reconocia "confirmado"/"validado"/"rechazado":
+    // cualquier otro valor real del backend (p.ej. "CONFIRMADO_EXITOSO",
+    // "QUALITY_REJECTED", "ERROR_VALIDACION") caia en el "else" y quedaba
+    // como PENDING para siempre en la lista de Reportes, aunque el deposito
+    // ya estuviera validado/rechazado. Eso hacia que exportReportsForExcel
+    // (que solo exporta VALIDATED/REJECTED) no encontrara nunca filas y
+    // generara un archivo vacio.
     private fun String.toReportStatus(): ReportStatus {
-        return when (trim().lowercase(Locale.ROOT)) {
-            "confirmado", "validado" -> ReportStatus.VALIDATED
-            "rechazado" -> ReportStatus.REJECTED
+        return when (trim().uppercase(Locale.ROOT)) {
+            "CONFIRMADO", "VALIDADO", "CONFIRMED", "VALIDATED", "CONFIRMADO_EXITOSO" -> ReportStatus.VALIDATED
+            "RECHAZADO", "REJECTED", "QUALITY_REJECTED", "ERROR_VALIDACION" -> ReportStatus.REJECTED
             else -> ReportStatus.PENDING
         }
     }
