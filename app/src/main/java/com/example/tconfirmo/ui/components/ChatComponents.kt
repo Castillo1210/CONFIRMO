@@ -17,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -45,7 +46,11 @@ import com.example.tconfirmo.ui.theme.PrimaryDarkGreen
 import com.example.tconfirmo.ui.theme.PrimaryGreen
 
 @Composable
-fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
+fun VoucherCardBubble(
+    card: VoucherCard,
+    isUser: Boolean = true,
+    onClick: () -> Unit
+) {
     val statusColor = when (card.status) {
         ReportStatus.VALIDATED -> Color(0xFF17265F)
         ReportStatus.REJECTED -> Color(0xFF991B1B)
@@ -62,7 +67,11 @@ fun VoucherCardBubble(card: VoucherCard, onClick: () -> Unit) {
             .width(260.dp)
             .padding(vertical = 4.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(20.dp),
+        shape = if (isUser) {
+            RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 0.dp)
+        } else {
+            RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 20.dp)
+        },
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
@@ -335,9 +344,9 @@ fun MessageBubble(
 ) {
     val isUser = message.from == MessageFrom.USER
     val bubbleShape = if (isUser) {
-        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 5.dp)
+        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 0.dp)
     } else {
-        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 5.dp, bottomEnd = 20.dp)
+        RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 0.dp, bottomEnd = 20.dp)
     }
 
     Column(
@@ -351,10 +360,17 @@ fun MessageBubble(
             .padding(if (isSearchMatch) 4.dp else 0.dp),
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+            if (!isUser) {
+                BotAvatar()
+                Spacer(modifier = Modifier.width(6.dp))
+            }
+            Column {
         when {
             message.voucherCard != null -> {
                 VoucherCardBubble(
                     card = message.voucherCard,
+                    isUser = isUser,
                     onClick = { onVoucherClick(message.voucherCard) }
                 )
                 Row(
@@ -467,6 +483,31 @@ fun MessageBubble(
                 }
             }
         }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BotAvatar() {
+    Surface(
+        modifier = Modifier
+            .padding(bottom = 2.dp)
+            .size(38.dp),
+        shape = CircleShape,
+        color = Color(0xFFF4F5F2),
+        border = BorderStroke(1.dp, PrimaryDarkGreen.copy(alpha = 0.25f)),
+        shadowElevation = 1.dp
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.bot_chat_monochrome_xxxhdpi),
+            contentDescription = "Bot",
+            modifier = Modifier
+                .fillMaxSize()
+                .scale(1.28f)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
     }
 }
 
@@ -539,10 +580,3 @@ fun MessageBubblePreview() {
         }
     }
 }
-
-
-
-
-
-
-

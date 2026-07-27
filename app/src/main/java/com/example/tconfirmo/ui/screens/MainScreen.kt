@@ -1,13 +1,17 @@
 package com.example.tconfirmo.ui.screens
 
 import android.app.Activity
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -47,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -67,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.compose.ui.unit.sp
 import com.example.tconfirmo.R
@@ -669,6 +675,7 @@ fun MainScreen(
                         wallpaper = chatWallpaper,
                         reports = reports,
                         messages = messages,
+                        onWallpaperChange = { chatWallpaper = it; saveChatWallpaper(context, it) },
                         hasMoreOlderMessages = vendedorChatHasMore,
                         isLoadingOlderMessages = isLoadingOlderMessages,
                         onLoadOlderMessages = { registerScope.launch { loadOlderVendedorMessages() } },
@@ -717,8 +724,6 @@ fun MainScreen(
                     )
                     2 -> NoticesTab()
                     3 -> SettingsTab(
-                        currentWallpaper = chatWallpaper,
-                        onWallpaperChange = { chatWallpaper = it; saveChatWallpaper(context, it) },
                         onCheckForUpdates = onCheckForUpdates,
                         onLogout = onLogout
                     )
@@ -891,6 +896,7 @@ fun ChatTab(
     wallpaper: String = "llanta",
     reports: List<Report> = emptyList(),
     messages: List<ChatMessage>,
+    onWallpaperChange: (String) -> Unit = {},
     hasMoreOlderMessages: Boolean = false,
     isLoadingOlderMessages: Boolean = false,
     onLoadOlderMessages: () -> Unit = {},
@@ -906,6 +912,7 @@ fun ChatTab(
     var openedVoucher by remember { mutableStateOf<VoucherCard?>(null) }
     var inputFocused by remember { mutableStateOf(false) }
     var showOlderMessages by remember { mutableStateOf(false) }
+    var showBotContactDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val todayDate = remember { todayChatDate() }
     val visibleMessages = remember(messages, showOlderMessages, todayDate) {
@@ -955,6 +962,22 @@ fun ChatTab(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val keyboardController = LocalSoftwareKeyboardController.current
+    val callPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            callSupport(context)
+        } else {
+            Toast.makeText(context, "Permiso de llamada denegado.", Toast.LENGTH_SHORT).show()
+        }
+    }
+    val onCallSupport = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED) {
+            callSupport(context)
+        } else {
+            callPermissionLauncher.launch(Manifest.permission.CALL_PHONE)
+        }
+    }
     val matches = remember(visibleMessages, searchText) {
         if (searchText.isBlank()) {
             emptyList()
@@ -995,20 +1018,28 @@ fun ChatTab(
                 }
                 Spacer(modifier = Modifier.width(4.dp))
                 Surface(
-                    modifier = Modifier.size(34.dp),
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clickable { showBotContactDialog = true },
                     shape = CircleShape,
-                    color = Color.White
+                    color = Color(0xFFF4F5F2),
+                    border = BorderStroke(1.dp, PrimaryDarkGreen.copy(alpha = 0.25f)),
+                    shadowElevation = 1.dp
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.bot_tire2),
+                        painter = painterResource(id = R.drawable.bot_chat_monochrome_xxxhdpi),
                         contentDescription = "TireBot",
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .scale(1.28f)
+                            .clip(CircleShape),
                         contentScale = ContentScale.Crop
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(-1.dp)
+                    verticalArrangement = Arrangement.spacedBy(-1.dp),
+                    modifier = Modifier.clickable { showBotContactDialog = true }
                 ) {
                     Text(
                         "TireBot",
@@ -1068,9 +1099,10 @@ fun ChatTab(
 
         // Messages List
         Box(modifier = Modifier.weight(1f)) {
-            if (wallpaper == "llanta") {
+            val wallpaperResource = chatWallpaperResource(wallpaper)
+            if (wallpaperResource != null) {
                 Image(
-                    painter = painterResource(id = R.drawable.llanta),
+                    painter = painterResource(id = wallpaperResource),
                     contentDescription = null,
                     modifier = Modifier.matchParentSize(),
                     contentScale = ContentScale.Crop
@@ -1287,6 +1319,150 @@ fun ChatTab(
                 voucher = voucher,
                 onDismiss = { openedVoucher = null }
             )
+        }
+
+        if (showBotContactDialog) {
+            TireBotContactDialog(
+                currentWallpaper = wallpaper,
+                onWallpaperChange = onWallpaperChange,
+                onCallSupport = onCallSupport,
+                onDismiss = { showBotContactDialog = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TireBotContactDialog(
+    currentWallpaper: String,
+    onWallpaperChange: (String) -> Unit,
+    onCallSupport: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(56.dp),
+                        shape = CircleShape,
+                        color = Color(0xFFF4F5F2),
+                        border = BorderStroke(1.dp, PrimaryDarkGreen.copy(alpha = 0.25f)),
+                        shadowElevation = 1.dp
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.bot_chat_monochrome_xxxhdpi),
+                            contentDescription = "TireBot",
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .scale(1.28f)
+                                .clip(CircleShape),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("TireBot", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = PrimaryDarkGreen)
+                        Text("Asistente automatico", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = Color(0xFFF8FAFF),
+                    border = BorderStroke(1.dp, Color(0xFFE7EAF4))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Horario de atencion", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = PrimaryDarkGreen)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Lunes a viernes: 8:30 am a 6:00 pm", fontSize = 12.sp, color = Color(0xFF334155))
+                        Text("Sabado: 8:30 am a 3:00 pm", fontSize = 12.sp, color = Color(0xFF334155))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = onCallSupport,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PrimaryGreen)
+                ) {
+                    Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Llamar a soporte 963862944", fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Palette, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Fondos del chat", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkGreen)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                LazyColumn(
+                    modifier = Modifier.heightIn(max = 330.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(chatWallpaperOptions) { option ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onWallpaperChange(option.id) },
+                            shape = RoundedCornerShape(16.dp),
+                            color = if (currentWallpaper == option.id) Color(0xFFFFF6B8) else Color(0xFFF8FAFF),
+                            border = BorderStroke(
+                                1.dp,
+                                if (currentWallpaper == option.id) PrimaryGreen.copy(alpha = 0.45f) else Color(0xFFE7EAF4)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Image(
+                                    painter = painterResource(id = option.resId),
+                                    contentDescription = option.name,
+                                    modifier = Modifier
+                                        .size(width = 58.dp, height = 42.dp)
+                                        .clip(RoundedCornerShape(12.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(option.name, modifier = Modifier.weight(1f), fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                RadioButton(
+                                    selected = currentWallpaper == option.id,
+                                    onClick = { onWallpaperChange(option.id) },
+                                    colors = RadioButtonDefaults.colors(selectedColor = PrimaryGreen)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -2494,8 +2670,6 @@ private fun String.csvCell(): String = "\"${replace("\"", "\"\"")}\""
 
 @Composable
 fun SettingsTab(
-    currentWallpaper: String = "llanta",
-    onWallpaperChange: (String) -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     onLogout: () -> Unit = {}
 ) {
@@ -2512,75 +2686,29 @@ fun SettingsTab(
     val phoneNumber = sessionManager.getPhoneNumber().orEmpty()
     val empresaId = sessionManager.getEmpresaId().orEmpty()
     val sucursalId = sessionManager.getSucursalId().orEmpty()
+    val sucursalName = sessionManager.getSucursalName().orEmpty()
+    var sucursalDisplay by remember(sucursalId, sucursalName) {
+        mutableStateOf(sucursalName.ifBlank { sucursalId })
+    }
     var empresaName by remember { mutableStateOf("") }
     var showPasswordDialog by remember { mutableStateOf(false) }
     var showLogoutDialog by remember { mutableStateOf(false) }
-    var showWallpaperDialog by remember { mutableStateOf(false) }
-    val galleryLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.GetContent()
-    ) { uri: android.net.Uri? ->
-        if (uri != null) {
-            onWallpaperChange(uri.toString())
-            showWallpaperDialog = false
-        }
-    }
-
-    if (showWallpaperDialog) {
-        AlertDialog(
-            onDismissRequest = { showWallpaperDialog = false },
-            title = { Text("Fondo del chat", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    val options = listOf(
-                        "llanta" to "Textura Llantas (Predeterminado)",
-                        "default" to "Blanco humo",
-                        "dark" to "Oscuro carbón",
-                        "green_soft" to "Verde suave",
-                        "blue_night" to "Azul noche",
-                        "sand" to "Arena cálida",
-                        "slate" to "Pizarra moderna"
-                    )
-                    options.forEach { (id, name) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    onWallpaperChange(id)
-                                    showWallpaperDialog = false
-                                }
-                                .padding(vertical = 12.dp, horizontal = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = currentWallpaper == id,
-                                onClick = null,
-                                colors = RadioButtonDefaults.colors(selectedColor = PrimaryGreen)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(name)
-                        }
-                    }
-                    TextButton(
-                        onClick = { galleryLauncher.launch("image/*") },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
-                    ) {
-                        Text("Elegir foto de la galería...", color = PrimaryDarkGreen)
-                    }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showWallpaperDialog = false }) {
-                    Text("Cerrar", color = PrimaryGreen)
-                }
-            }
-        )
-    }
     LaunchedEffect(empresaId) {
         empresaName = depositRepository
             .getCompanies()
             .firstOrNull { it.id == empresaId }
             ?.nombre
             .orEmpty()
+    }
+
+    LaunchedEffect(sucursalId) {
+        if (sucursalId.isBlank() || sucursalName.isNotBlank()) return@LaunchedEffect
+
+        val resolvedName = depositRepository.getBranchNameById(sucursalId).orEmpty()
+        if (resolvedName.isNotBlank()) {
+            sessionManager.updateSucursalName(resolvedName)
+            sucursalDisplay = resolvedName
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
@@ -2612,41 +2740,41 @@ fun SettingsTab(
         ) {
             // Profile Card
             Card(
-                modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
-                Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(modifier = Modifier.size(46.dp), shape = RoundedCornerShape(14.dp), color = PrimaryGreen) {
+                        Surface(modifier = Modifier.size(38.dp), shape = RoundedCornerShape(12.dp), color = PrimaryGreen) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(fullName.userInitials(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                Text(fullName.userInitials(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
                         Column {
-                            Text(fullName.ifBlank { "Usuario" }, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = PrimaryDarkGreen)
+                            Text(fullName.ifBlank { "Usuario" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = PrimaryDarkGreen)
                         }
                     }
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     SettingsRow(Icons.Default.Business, "Empresa", empresaName.ifBlank { "No disponible" })
-                    SettingsRow(Icons.Default.Store, "Sucursal", if (sucursalId.isBlank()) "No disponible" else "Asignada")
+                    SettingsRow(Icons.Default.Store, "Sucursal", sucursalDisplay.ifBlank { "No disponible" })
                     SettingsRow(Icons.Default.Phone, "Celular", phoneNumber.displayPhone())
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("CUENTA", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("CUENTA", modifier = Modifier.padding(horizontal = 20.dp), fontSize = 10.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(6.dp))
 
             Surface(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.padding(horizontal = 12.dp),
+                shape = RoundedCornerShape(18.dp),
                 color = Color.White,
                 border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
-                shadowElevation = 4.dp
+                shadowElevation = 2.dp
             ) {
                 Column {
                     SettingsActionRow(
@@ -2667,36 +2795,16 @@ fun SettingsTab(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
-            Spacer(modifier = Modifier.height(18.dp))
-            Text("APARIENCIA", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("APLICACION", modifier = Modifier.padding(horizontal = 20.dp), fontSize = 10.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(6.dp))
 
             Surface(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.padding(horizontal = 12.dp),
+                shape = RoundedCornerShape(18.dp),
                 color = Color.White,
                 border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
-                shadowElevation = 4.dp
-            ) {
-                Column {
-                    SettingsActionRow(
-                        Icons.Default.Palette,
-                        "Fondo del chat",
-                        "Personaliza el fondo de tus conversaciones",
-                        onClick = { showWallpaperDialog = true }
-                    )
-                }
-            }
-            Text("APLICACION", modifier = Modifier.padding(horizontal = 24.dp), fontSize = 11.sp, color = PrimaryGreen, fontWeight = FontWeight.Bold)
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Surface(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                shape = RoundedCornerShape(24.dp),
-                color = Color.White,
-                border = BorderStroke(1.dp, Color(0xFFE7EAF4)),
-                shadowElevation = 4.dp
+                shadowElevation = 2.dp
             ) {
                 Column {
                     SettingsRow(Icons.Default.Info, "Version", BuildConfig.VERSION_NAME)
@@ -2742,12 +2850,12 @@ fun SettingsRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: St
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(icon, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(label, fontSize = 12.sp, color = Color.Gray, modifier = Modifier.width(60.dp))
+        Icon(icon, contentDescription = null, tint = PrimaryGreen, modifier = Modifier.size(15.dp))
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(label, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.width(58.dp))
         Text(value, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
     }
 }
@@ -2779,24 +2887,24 @@ fun SettingsActionRow(
     onClick: () -> Unit = {}
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp),
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            modifier = Modifier.size(36.dp),
-            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.size(32.dp),
+            shape = RoundedCornerShape(9.dp),
             color = if (isDestructive) Color(0xFFFFF3F3) else Color(0xFFFFF6B8)
         ) {
             Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = if (isDestructive) Color.Red else PrimaryGreen, modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = null, tint = if (isDestructive) Color.Red else PrimaryGreen, modifier = Modifier.size(16.dp))
             }
         }
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = if (isDestructive) Color.Red else Color.Black)
-            Text(desc, color = Color.Gray, fontSize = 11.sp)
+            Text(label, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = if (isDestructive) Color.Red else Color.Black)
+            Text(desc, color = Color.Gray, fontSize = 10.sp)
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.LightGray)
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.LightGray, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -3129,15 +3237,53 @@ private fun sharedVoucherExtension(uri: Uri, mimeType: String?): String {
 }
 
 private const val KEY_CHAT_WALLPAPER = "chat_wallpaper"
+private const val SUPPORT_PHONE_NUMBER = "963862944"
+
+private data class ChatWallpaperOption(
+    val id: String,
+    val name: String,
+    val resId: Int
+)
+
+private val chatWallpaperOptions = listOf(
+    ChatWallpaperOption("llanta", "Textura Llantas (Predeterminado)", R.drawable.llanta),
+    ChatWallpaperOption("fondo_metalico", "Fondo Metalico", R.drawable.wallpaper_fondo_metalico),
+    ChatWallpaperOption("llantas_2", "Llantas 2", R.drawable.wallpaper_llantas_2),
+    ChatWallpaperOption("llantas_3", "Llantas 3", R.drawable.wallpaper_llantas_3),
+    ChatWallpaperOption("llantas_4", "Llantas 4", R.drawable.wallpaper_llantas_4),
+    ChatWallpaperOption("llantas_5", "Llantas 5", R.drawable.wallpaper_llantas_5),
+    ChatWallpaperOption("llantas_almacen", "Llantas Almacen", R.drawable.wallpaper_llantas_almacen),
+    ChatWallpaperOption("llantas_humo", "Llantas Humo", R.drawable.wallpaper_llantas_humo),
+    ChatWallpaperOption("llantas_uno", "Llantas uno", R.drawable.wallpaper_llantas_uno),
+    ChatWallpaperOption("vehiculo_1", "Vehiculo 1", R.drawable.wallpaper_vehiculo_1),
+    ChatWallpaperOption("vehiculo_2", "Vehiculo 2", R.drawable.wallpaper_vehiculo_2),
+    ChatWallpaperOption("vehiculo_3", "Vehiculo 3", R.drawable.wallpaper_vehiculo_3),
+    ChatWallpaperOption("vehiculo_4", "Vehiculo 4", R.drawable.wallpaper_vehiculo_4),
+    ChatWallpaperOption("vehiculo_5", "Vehiculo 5", R.drawable.wallpaper_vehiculo_5),
+    ChatWallpaperOption("vehiculo_6", "Vehiculo 6", R.drawable.wallpaper_vehiculo_6)
+)
+
+private fun chatWallpaperResource(wallpaper: String): Int? {
+    return chatWallpaperOptions.firstOrNull { it.id == wallpaper }?.resId
+}
 
 private fun loadChatWallpaper(context: Context): String {
     val prefs = context.getSharedPreferences(REGISTER_SESSION_PREFS, Context.MODE_PRIVATE)
-    return prefs.getString(KEY_CHAT_WALLPAPER, "llanta") ?: "llanta"
+    val savedWallpaper = prefs.getString(KEY_CHAT_WALLPAPER, "llanta") ?: "llanta"
+    return if (chatWallpaperResource(savedWallpaper) != null) savedWallpaper else "llanta"
 }
 
 private fun saveChatWallpaper(context: Context, wallpaper: String) {
     val prefs = context.getSharedPreferences(REGISTER_SESSION_PREFS, Context.MODE_PRIVATE)
     prefs.edit().putString(KEY_CHAT_WALLPAPER, wallpaper).apply()
+}
+
+private fun callSupport(context: Context) {
+    val intent = Intent(Intent.ACTION_CALL, Uri.parse("tel:$SUPPORT_PHONE_NUMBER"))
+    runCatching { context.startActivity(intent) }
+        .onFailure {
+            Toast.makeText(context, "No se pudo iniciar la llamada a soporte.", Toast.LENGTH_SHORT).show()
+        }
 }
 
 private fun loadPendingSharedVoucherUriStrings(context: Context): List<String> {

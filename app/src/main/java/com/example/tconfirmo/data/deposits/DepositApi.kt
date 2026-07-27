@@ -32,6 +32,9 @@ interface DepositApi {
     @GET("api/v1/masters/empresas")
     suspend fun getCompanies(): Response<List<EmpresaResponseDto>>
 
+    @GET("api/v1/masters/sucursales")
+    suspend fun getBranches(): Response<List<SucursalResponseDto>>
+
     @Multipart
     @POST("api/v1/deposits")
     suspend fun createDeposit(

@@ -152,3 +152,16 @@ data class EmpresaResponseDto(
     @SerializedName(value = "activo", alternate = ["Activo"])
     val activo: Boolean? = null
 )
+
+data class SucursalResponseDto(
+    @SerializedName(value = "id", alternate = ["Id"])
+    val id: String,
+    @SerializedName(value = "nombre", alternate = ["Nombre", "name", "Name"])
+    val nombre: String,
+    @SerializedName(value = "codigo", alternate = ["Codigo", "code", "Code"])
+    val codigo: String? = null,
+    @SerializedName(value = "empresaId", alternate = ["EmpresaId"])
+    val empresaId: String? = null,
+    @SerializedName(value = "activo", alternate = ["Activo"])
+    val activo: Boolean? = null
+)

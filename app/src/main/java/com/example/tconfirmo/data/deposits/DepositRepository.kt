@@ -48,6 +48,21 @@ class DepositRepository(
         }
     }
 
+    suspend fun getBranchNameById(sucursalId: String): String? {
+        if (sucursalId.isBlank()) return null
+
+        val response = runCatching { depositApi.getBranches() }.getOrNull()
+            ?: return null
+
+        if (!response.isSuccessful) return null
+
+        return response.body()
+            .orEmpty()
+            .firstOrNull { it.id.equals(sucursalId, ignoreCase = true) }
+            ?.nombre
+            ?.takeIf { it.isNotBlank() }
+    }
+
     // Solo pega contra GET /api/v1/deposits (una llamada, sin importar cuantos
     // items tenga la pagina). empresa/banco ya vienen embebidos en cada item
     // de la respuesta (ver DepositListResponseDto), asi que no hace falta ni

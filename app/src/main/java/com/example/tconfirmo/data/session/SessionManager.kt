@@ -2,6 +2,7 @@ package com.example.tconfirmo.data.session
 
 import android.content.Context
 import com.example.tconfirmo.data.auth.LoginResponseDto
+import com.example.tconfirmo.data.auth.sucursalDisplayName
 import java.util.UUID
 
 class SessionManager(context: Context) {
@@ -26,6 +27,7 @@ class SessionManager(context: Context) {
             .putString(KEY_FULL_NAME, response.user.fullName)
             .putString(KEY_EMPRESA_ID, response.user.empresaId)
             .putString(KEY_SUCURSAL_ID, response.user.sucursalId)
+            .putString(KEY_SUCURSAL_NAME, response.user.sucursalDisplayName())
             .apply()
     }
 
@@ -46,6 +48,14 @@ class SessionManager(context: Context) {
     fun getEmpresaId(): String? = prefs.getString(KEY_EMPRESA_ID, null)
 
     fun getSucursalId(): String? = prefs.getString(KEY_SUCURSAL_ID, null)
+
+    fun getSucursalName(): String? = prefs.getString(KEY_SUCURSAL_NAME, null)
+
+    fun updateSucursalName(sucursalName: String) {
+        prefs.edit()
+            .putString(KEY_SUCURSAL_NAME, sucursalName)
+            .apply()
+    }
 
     fun getFullName(): String? = prefs.getString(KEY_FULL_NAME, null)
 
@@ -90,5 +100,6 @@ class SessionManager(context: Context) {
         private const val KEY_FULL_NAME = "full_name"
         private const val KEY_EMPRESA_ID = "empresa_id"
         private const val KEY_SUCURSAL_ID = "sucursal_id"
+        private const val KEY_SUCURSAL_NAME = "sucursal_name"
     }
 }
