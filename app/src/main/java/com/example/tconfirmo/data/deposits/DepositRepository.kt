@@ -104,7 +104,10 @@ class DepositRepository(
         val detail = getDepositDetail(report.id) ?: return report
         return report.copy(
             imageUrl = detail.imagenUrl ?: detail.imagenVoucher,
-            mensajeValidacion = detail.motivoRechazo ?: report.mensajeValidacion
+            // MotivoRechazo quedo sin uso en el backend (nunca se llena en el
+            // rechazo, solo se resetea a null al re-registrar). El campo real
+            // con el motivo que escribe finanzas es Observaciones.
+            mensajeValidacion = detail.observaciones ?: report.mensajeValidacion
         )
     }
 

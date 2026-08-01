@@ -80,6 +80,8 @@ import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.*
 import com.example.tconfirmo.data.auth.AuthRepository
 import com.example.tconfirmo.data.auth.AuthResult
+import com.example.tconfirmo.data.avisos.AvisoResponseDto
+import com.example.tconfirmo.data.avisos.AvisosRepository
 import com.example.tconfirmo.data.chat.ChatCache
 import com.example.tconfirmo.data.chat.ChatRepository
 import com.example.tconfirmo.data.deposits.DepositCreateResult
@@ -92,6 +94,7 @@ import com.example.tconfirmo.ui.components.MessageBubble
 import com.example.tconfirmo.ui.components.PdfPreview
 import com.example.tconfirmo.ui.components.RegisterSheet
 import com.example.tconfirmo.ui.components.SignedVoucherImage
+import com.example.tconfirmo.ui.components.SignedAvisoMediaImage
 import com.example.tconfirmo.ui.theme.AccentGreen
 import com.example.tconfirmo.ui.theme.PrimaryDarkGreen
 import com.example.tconfirmo.ui.theme.PrimaryGreen
@@ -125,6 +128,7 @@ fun MainScreen(
     val sessionManager = remember { SessionManager(context) }
     val depositRepository = remember { DepositRepository(context.applicationContext, sessionManager) }
     val chatRepository = remember { ChatRepository() }
+    val avisosRepository = remember { AvisosRepository() }
     val chatCache = remember { ChatCache(context) }
     // Id del vendedor logueado (el propio usuario de la app): identifica el
     // canal general de chat con finanzas (api/v1/chat/vendedores/{vendedorId}),
@@ -154,6 +158,8 @@ fun MainScreen(
     var messages by remember { mutableStateOf(chatCache.load()) }
     var reports by remember { mutableStateOf(emptyList<Report>()) }
     var reportsBackPressCount by remember { mutableStateOf(0) }
+    var avisos by remember { mutableStateOf(emptyList<AvisoResponseDto>()) }
+    var isLoadingAvisos by remember { mutableStateOf(false) }
     // Paginacion del feed general vendedor<->finanzas ("Ver mensajes anteriores").
     var vendedorChatHasMore by remember { mutableStateOf(true) }
     var isLoadingOlderMessages by remember { mutableStateOf(false) }
@@ -179,6 +185,13 @@ fun MainScreen(
             chatCache.save(messages)
         }
         isLoadingReports = false
+    }
+
+    suspend fun refreshAvisosFromApi() {
+        if (sessionManager.isTestMode()) return
+        isLoadingAvisos = true
+        avisos = avisosRepository.getMisAvisos()
+        isLoadingAvisos = false
     }
 
     // "Ver mensajes anteriores" agotando el historial ya cargado: pide una
@@ -231,6 +244,19 @@ fun MainScreen(
         refreshReportsFromApi()
     }
 
+    LaunchedEffect(Unit) {
+        refreshAvisosFromApi()
+    }
+
+    // Refresca al entrar al tab de Avisos (ej: llega un push mientras el
+    // usuario esta en otro tab con la app abierta -- eso no dispara
+    // resumeSignal porque la app nunca paso a background).
+    LaunchedEffect(selectedTab) {
+        if (selectedTab == 2) {
+            refreshAvisosFromApi()
+        }
+    }
+
     // BUG "primer mensaje perdido": MainActivity incrementa resumeSignal cada
     // vez que la app vuelve a primer plano (onResume, salvo el primero, que ya
     // cubre el LaunchedEffect(Unit) de arriba). Sin esto, el chat vendedor solo
@@ -243,6 +269,7 @@ fun MainScreen(
     LaunchedEffect(resumeSignal) {
         if (resumeSignal > 0) {
             refreshReportsFromApi()
+            refreshAvisosFromApi()
         }
     }
 
@@ -361,7 +388,7 @@ fun MainScreen(
                         if (report.id == depositId) {
                             report.copy(
                                 status = status,
-                                mensajeValidacion = event.deposit?.motivoRechazo ?: report.mensajeValidacion,
+                                mensajeValidacion = event.deposit?.observaciones ?: report.mensajeValidacion,
                                 imageUrl = event.deposit?.imagenVoucher ?: report.imageUrl
                             )
                         } else {
@@ -378,7 +405,7 @@ fun MainScreen(
                         if (report.id == depositId) {
                             report.copy(
                                 status = newStatus ?: report.status,
-                                mensajeValidacion = event.deposit?.motivoRechazo ?: report.mensajeValidacion,
+                                mensajeValidacion = event.deposit?.observaciones ?: report.mensajeValidacion,
                                 imageUrl = event.deposit?.imagenVoucher ?: report.imageUrl
                             )
                         } else {
@@ -722,7 +749,11 @@ fun MainScreen(
                             }
                         }
                     )
-                    2 -> NoticesTab()
+                    2 -> NoticesTab(
+            avisos = avisos,
+            isLoading = isLoadingAvisos,
+            onRefresh = { registerScope.launch { refreshAvisosFromApi() } }
+        )
                     3 -> SettingsTab(
                         onCheckForUpdates = onCheckForUpdates,
                         onLogout = onLogout
@@ -2065,16 +2096,40 @@ private fun PaginationPageButton(
     }
 }
 
+// Formateo defensivo de fechas ISO-8601 que manda el backend (DateTimeOffset
+// -> "2026-07-30T20:16:42.89+00:00" o con "Z"). Si el parseo falla por
+// cualquier motivo, se muestra el string crudo en vez de romper la pantalla.
+private fun formatAvisoFecha(iso: String?): String {
+    if (iso.isNullOrBlank()) return ""
+    return try {
+        val cleaned = iso.substringBefore(".").removeSuffix("Z")
+        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+        parser.timeZone = TimeZone.getTimeZone("UTC")
+        val date = parser.parse(cleaned) ?: return iso
+        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        formatter.format(date)
+    } catch (e: Exception) {
+        iso
+    }
+}
+
 @Composable
-private fun NoticesTab() {
+private fun NoticesTab(
+    avisos: List<AvisoResponseDto>,
+    isLoading: Boolean,
+    onRefresh: () -> Unit = {}
+) {
+    var selectedAviso by remember { mutableStateOf<AvisoResponseDto?>(null) }
+
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(PrimaryGreen)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     "Avisos",
                     color = Color.White,
@@ -2084,47 +2139,196 @@ private fun NoticesTab() {
                 )
                 Text("Notificaciones y comunicados", color = Color(0xFFFFF6B8), fontSize = 12.sp, modifier = Modifier.height(20.dp))
             }
+            IconButton(onClick = onRefresh, enabled = !isLoading) {
+                Icon(
+                    Icons.Default.Refresh,
+                    contentDescription = "Actualizar avisos",
+                    tint = Color.White
+                )
+            }
         }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(28.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                Surface(
-                    modifier = Modifier.size(86.dp),
-                    shape = CircleShape,
-                    color = Color(0xFFFFF6B8),
-                    border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.75f))
+        when {
+            isLoading && avisos.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = PrimaryGreen)
+                }
+            }
+            avisos.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(28.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Construction,
-                            contentDescription = null,
-                            tint = PrimaryGreen,
-                            modifier = Modifier.size(42.dp)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.size(86.dp),
+                            shape = CircleShape,
+                            color = Color(0xFFFFF6B8),
+                            border = BorderStroke(1.dp, AccentGreen.copy(alpha = 0.75f))
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Default.Notifications,
+                                    contentDescription = null,
+                                    tint = PrimaryGreen,
+                                    modifier = Modifier.size(42.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = "No hay avisos por el momento",
+                            color = Color(0xFF17265F),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSansFamily
+                        )
+                        Text(
+                            text = "Los comunicados de la empresa apareceran aqui.",
+                            color = Color(0xFF6A7394),
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                     }
                 }
-                Text(
-                    text = "Panel de avisos en construccion",
-                    color = Color(0xFF17265F),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = PlusJakartaSansFamily
-                )
-                Text(
-                    text = "Los comunicados apareceran aqui cuando el modulo este disponible.",
-                    color = Color(0xFF6A7394),
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(avisos, key = { it.id }) { aviso ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedAviso = aviso },
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF7F8FC),
+                            border = BorderStroke(1.dp, Color(0xFFE3E6F0))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (!aviso.mediaUrl.isNullOrBlank()) {
+                                    Surface(
+                                        modifier = Modifier.size(44.dp),
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFFEDEFF6)
+                                    ) {
+                                        SignedAvisoMediaImage(
+                                            avisoId = aviso.id,
+                                            contentDescription = aviso.titulo,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = aviso.titulo,
+                                        color = Color(0xFF17265F),
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = PlusJakartaSansFamily,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = aviso.mensajeTexto,
+                                        color = Color(0xFF6A7394),
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = formatAvisoFecha(aviso.ultimaEjecucion ?: aviso.createdAt),
+                                        color = Color(0xFF9AA1B8),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                                Icon(
+                                    Icons.Filled.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = Color(0xFFB9BFD6),
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    val aviso = selectedAviso
+    if (aviso != null) {
+        Dialog(onDismissRequest = { selectedAviso = null }) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 560.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.White
+            ) {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    if (!aviso.mediaUrl.isNullOrBlank()) {
+                        SignedAvisoMediaImage(
+                            avisoId = aviso.id,
+                            contentDescription = aviso.titulo,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp)
+                        )
+                    }
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text(
+                            text = aviso.titulo,
+                            color = Color(0xFF17265F),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = PlusJakartaSansFamily
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = formatAvisoFecha(aviso.ultimaEjecucion ?: aviso.createdAt),
+                            color = Color(0xFF9AA1B8),
+                            fontSize = 11.sp
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = aviso.mensajeTexto,
+                            color = Color(0xFF3A4160),
+                            fontSize = 14.sp,
+                            lineHeight = 20.dp.value.sp
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Surface(
+                            onClick = { selectedAviso = null },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = PrimaryGreen
+                        ) {
+                            Text(
+                                text = "Cerrar",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -2386,7 +2590,14 @@ private fun ReportDetailSheet(
             }
 
             Spacer(modifier = Modifier.height(12.dp))
-            StatusBanner(report.status)
+            StatusBanner(
+                status = report.status,
+                subtitleOverride = when {
+                    report.status != ReportStatus.REJECTED -> null
+                    isLoadingDetail -> "Cargando..."
+                    else -> enrichedReport.mensajeValidacion
+                }
+            )
             Spacer(modifier = Modifier.height(14.dp))
             DetailRows(
                 rows = when (report.status) {
@@ -2411,25 +2622,6 @@ private fun ReportDetailSheet(
                     )
                 }
             )
-
-            if (report.status == ReportStatus.REJECTED && (isLoadingDetail || !enrichedReport.mensajeValidacion.isNullOrBlank())) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Text("Motivo del rechazo", fontSize = 11.sp, color = PrimaryDarkGreen.copy(alpha = 0.72f), fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(6.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFF8FAFF),
-                    border = BorderStroke(1.dp, Color(0xFFB91C1C).copy(alpha = 0.32f))
-                ) {
-                    Text(
-                        text = if (isLoadingDetail) "Cargando..." else enrichedReport.mensajeValidacion.orEmpty(),
-                        color = Color(0xFFB71C1C),
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(14.dp)
-                    )
-                }
-            }
 
             Spacer(modifier = Modifier.height(14.dp))
             // Se usa "report" (no "enrichedReport"): la referencia del voucher
@@ -2529,11 +2721,11 @@ private fun MissingVoucherPreview(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun StatusBanner(status: ReportStatus) {
+private fun StatusBanner(status: ReportStatus, subtitleOverride: String? = null) {
     val bg: Color
     val icon: androidx.compose.ui.graphics.vector.ImageVector
     val title: String
-    val subtitle: String
+    val defaultSubtitle: String
     val color: Color
 
     when (status) {
@@ -2541,24 +2733,30 @@ private fun StatusBanner(status: ReportStatus) {
             bg = Color(0xFFDCFCE7)
             icon = Icons.Default.CheckCircle
             title = "DEPOSITO CONFIRMADO"
-            subtitle = "Validado por el sistema"
+            defaultSubtitle = "Validado por el sistema"
             color = Color(0xFF166534)
         }
         ReportStatus.REJECTED -> {
             bg = Color(0xFFFFF3F3)
             icon = Icons.Default.Error
             title = "DEPOSITO RECHAZADO"
-            subtitle = "Requiere correccion"
+            defaultSubtitle = "Requiere correccion"
             color = Color(0xFFB71C1C)
         }
         ReportStatus.PENDING -> {
             bg = Color(0xFFFFF9D6)
             icon = Icons.Default.Schedule
             title = "EN PROCESO"
-            subtitle = "Pendiente de validacion por el sistema"
+            defaultSubtitle = "Pendiente de validacion por el sistema"
             color = Color(0xFF17265F)
         }
     }
+
+    // Para RECHAZADO, subtitleOverride trae el motivo real (Observaciones,
+    // el campo que finanzas si llena al rechazar -- MotivoRechazo quedo sin
+    // uso). Si aun no llega (carga en curso) o viene vacio, se cae al texto
+    // generico de siempre.
+    val subtitle = subtitleOverride?.takeIf { it.isNotBlank() } ?: defaultSubtitle
 
     Surface(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp), color = bg) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

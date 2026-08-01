@@ -4,6 +4,7 @@ import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.auth.AuthApi
 import com.example.tconfirmo.data.auth.RefreshRequestDto
 import com.example.tconfirmo.data.auth.RefreshResponseDto
+import com.example.tconfirmo.data.avisos.AvisosApi
 import com.example.tconfirmo.data.chat.ChatApi
 import com.example.tconfirmo.data.deposits.DepositApi
 import com.example.tconfirmo.data.session.SessionManager
@@ -103,6 +104,7 @@ object ApiClient {
     val authApi: AuthApi = retrofit.create(AuthApi::class.java)
     val depositApi: DepositApi = retrofit.create(DepositApi::class.java)
     val chatApi: ChatApi = retrofit.create(ChatApi::class.java)
+    val avisosApi: AvisosApi = retrofit.create(AvisosApi::class.java)
 }
 
 /**
