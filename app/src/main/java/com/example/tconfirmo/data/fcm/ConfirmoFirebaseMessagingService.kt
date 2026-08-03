@@ -42,10 +42,15 @@ class ConfirmoFirebaseMessagingService : FirebaseMessagingService() {
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
 
-        // El backend envía notificaciones "mixtas" (Notification + Data) para que
-        // Android las muestre solo automáticamente cuando la app está en background.
-        // En foreground el sistema no muestra nada y llama a esta función con el
-        // RemoteMessage completo: si no la construimos y mostramos a mano acá, se pierde.
+        // FIX: el backend enviaba notificaciones "mixtas" (Notification + Data),
+        // lo que hacia que a veces se mostrara doble -- una auto-desplegada por
+        // el sistema desde el bloque Notification, y otra construida a mano aca
+        // mismo desde el mismo mensaje (el comportamiento de cuando el SO la
+        // auto-muestra o no es mas inconsistente de lo que asumia este comentario
+        // original). El backend ahora manda el mensaje solo con Data (ver
+        // FCMNotificationService.SendNotificationAsync), asi que este es el
+        // UNICO lugar que muestra algo, siempre -- sin importar foreground o
+        // background.
         val title = remoteMessage.notification?.title
             ?: remoteMessage.data["title"]
             ?: "Confirmo"
@@ -53,8 +58,15 @@ class ConfirmoFirebaseMessagingService : FirebaseMessagingService() {
             ?: remoteMessage.data["body"]
             ?: return
 
+        // FIX: antes solo se usaba depositId para el id de la notificacion --
+        // para un Aviso ese campo siempre es null (el backend manda avisoId),
+        // asi que caia siempre al timestamp y nunca colapsaba con una anterior
+        // del mismo aviso, quedando apiladas en vez de reemplazadas.
         val depositId = remoteMessage.data["depositId"]
-        val notificationId = depositId?.hashCode() ?: System.currentTimeMillis().toInt()
+        val avisoId = remoteMessage.data["avisoId"]
+        val notificationId = depositId?.hashCode()
+            ?: avisoId?.hashCode()
+            ?: System.currentTimeMillis().toInt()
 
         showNotification(title, body, notificationId)
     }

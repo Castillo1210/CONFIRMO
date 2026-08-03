@@ -1,8 +1,8 @@
 {
-  "versionCode": 16,
-  "versionName": "1.15",
-  "updatedAt": "2026-07-27",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.15.apk",
-  "releaseNotes": "Actualización de Interfaz",
+  "versionCode": 17,
+  "versionName": "1.16",
+  "updatedAt": "2026-08-01",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.16.apk",
+  "releaseNotes": "Se añadió la sección de avisos y se corrigió un problema con las notificaciones",
   "required": true
 }

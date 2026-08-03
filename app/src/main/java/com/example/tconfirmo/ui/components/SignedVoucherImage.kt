@@ -112,6 +112,53 @@ fun SignedVoucherImage(
     }
 }
 
+// Mismo patron que SignedVoucherImage, pero apuntando al endpoint de media de
+// avisos (GET /api/v1/avisos/{avisoId}/media) en vez del voucher de un
+// deposito. Se reusan el shimmer y el error state de mas abajo.
+@Composable
+fun SignedAvisoMediaImage(
+    avisoId: String?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val imageUrl = remember(avisoId) {
+        val accessToken = SessionManager(context).getAccessToken()
+        if (avisoId.isNullOrBlank() || accessToken.isNullOrBlank()) {
+            null
+        } else {
+            "${BuildConfig.API_BASE_URL}api/v1/avisos/$avisoId/media?access_token=${Uri.encode(accessToken)}"
+        }
+    }
+
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        if (imageUrl.isNullOrBlank()) {
+            VoucherLoadErrorPreview("No se pudo identificar la imagen.")
+        } else {
+            SubcomposeAsyncImage(
+                model = imageUrl,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Fit,
+                loading = {
+                    VoucherImageShimmer(modifier = Modifier.fillMaxSize())
+                },
+                error = {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        VoucherLoadErrorPreview("No se pudo leer la imagen del aviso.")
+                    }
+                },
+                success = {
+                    SubcomposeAsyncImageContent()
+                }
+            )
+        }
+    }
+}
+
 // Placeholder mientras Coil todavia esta pidiendo/decodificando la imagen.
 // Antes esto era solo un CircularProgressIndicator de 28dp sin fillMaxSize,
 // asi que quedaba chiquito y sin centrar bien dentro de la tarjeta de
