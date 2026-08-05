@@ -1,8 +1,8 @@
 {
-  "versionCode": 17,
-  "versionName": "1.16",
-  "updatedAt": "2026-08-01",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.16.apk",
-  "releaseNotes": "Se añadió la sección de avisos y se corrigió un problema con las notificaciones",
+  "versionCode": 18,
+  "versionName": "1.17",
+  "updatedAt": "2026-08-05",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.17.apk",
+  "releaseNotes": "Se corrige el botón de cambiar voucher al regularizar un depósito. Se mejoro la pestaña de Avisos",
   "required": true
 }

@@ -435,6 +435,18 @@ fun RegisterSheet(
                 bancos = bancos,
                 canAdd = canAddDraft,
                 isEditing = editingItemId != null,
+                // FIX: antes esto era simplemente "!isEditing" adentro de
+                // NewDepositContent -- bloqueaba cambiar la foto siempre que
+                // se editara un item ya agregado al carrito. Eso incluye el
+                // flujo de "Regularizar" un depósito rechazado (ver
+                // onRegularize en MainScreen.kt): el draft entra como item
+                // del carrito con la imagen VIEJA ya cargada, y para
+                // reemplazarla el usuario tiene que abrirlo para editarlo --
+                // exactamente el caso que quedaba bloqueado, así que nunca
+                // aparecía la opción "Cambiar". Ahora la imagen es editable
+                // si no se está editando un item, O si el item es justamente
+                // una regularización (que existe para eso: cambiar el voucher).
+                imageEditable = editingItemId == null || draftRegularizeDepositId != null,
                 onBack = { mode = RegisterMode.Cart },
                 onCamera = ::openCamera,
                 onGallery = ::openGallery,
@@ -624,6 +636,7 @@ private fun NewDepositContent(
     bancos: List<String>,
     canAdd: Boolean,
     isEditing: Boolean,
+    imageEditable: Boolean,
     onBack: () -> Unit,
     onCamera: () -> Unit,
     onGallery: () -> Unit,
@@ -670,7 +683,7 @@ private fun NewDepositContent(
             onCamera = onCamera,
             onGallery = onGallery,
             onRemoveImage = onRemoveImage,
-            imageEditable = !isEditing
+            imageEditable = imageEditable
         )
         Spacer(modifier = Modifier.height(10.dp))
         SelectorButton("Empresa", empresa, "Seleccionar Empresa", Icons.Default.Business, onOpenEmpresaPicker)

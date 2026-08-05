@@ -80,6 +80,7 @@ import com.example.tconfirmo.BuildConfig
 import com.example.tconfirmo.data.*
 import com.example.tconfirmo.data.auth.AuthRepository
 import com.example.tconfirmo.data.auth.AuthResult
+import com.example.tconfirmo.data.avisos.AvisoReadStore
 import com.example.tconfirmo.data.avisos.AvisoResponseDto
 import com.example.tconfirmo.data.avisos.AvisosRepository
 import com.example.tconfirmo.data.chat.ChatCache
@@ -2121,6 +2122,18 @@ private fun NoticesTab(
 ) {
     var selectedAviso by remember { mutableStateOf<AvisoResponseDto?>(null) }
 
+    val avisoReadContext = LocalContext.current
+    val avisoReadStore = remember { AvisoReadStore(avisoReadContext) }
+    var readAvisoIds by remember { mutableStateOf(avisoReadStore.getReadIds()) }
+
+    fun openAviso(aviso: AvisoResponseDto) {
+        selectedAviso = aviso
+        if (aviso.id !in readAvisoIds) {
+            avisoReadStore.markRead(aviso.id)
+            readAvisoIds = readAvisoIds + aviso.id
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(Color.White)) {
         Row(
             modifier = Modifier
@@ -2204,18 +2217,33 @@ private fun NoticesTab(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(avisos, key = { it.id }) { aviso ->
+                        val isUnread = aviso.id !in readAvisoIds
+                        // Amarillo pastel: el mismo que ya usa el banner de
+                        // "EN PROCESO" en ReportStatus.PENDING mas abajo, para
+                        // que combine con el resto de la interfaz en vez de
+                        // introducir un color nuevo.
+                        val unreadBg = Color(0xFFFFF9D6)
+                        val unreadAccent = Color(0xFFCA9A00)
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { selectedAviso = aviso },
+                                .clickable { openAviso(aviso) },
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF7F8FC),
-                            border = BorderStroke(1.dp, Color(0xFFE3E6F0))
+                            color = if (isUnread) unreadBg else Color(0xFFF7F8FC),
+                            border = BorderStroke(1.dp, if (isUnread) unreadAccent.copy(alpha = 0.45f) else Color(0xFFE3E6F0))
                         ) {
                             Row(
                                 modifier = Modifier.padding(14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                if (isUnread) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(unreadAccent, shape = androidx.compose.foundation.shape.CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                }
                                 if (!aviso.mediaUrl.isNullOrBlank()) {
                                     Surface(
                                         modifier = Modifier.size(44.dp),
@@ -2235,7 +2263,7 @@ private fun NoticesTab(
                                         text = aviso.titulo,
                                         color = Color(0xFF17265F),
                                         fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold,
+                                        fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Medium,
                                         fontFamily = PlusJakartaSansFamily,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
