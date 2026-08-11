@@ -74,6 +74,12 @@ data class DepositResponseDto(
     val bancoId: String?,
     @SerializedName(value = "sucursalId", alternate = ["SucursalId"])
     val sucursalId: String?,
+    // El detalle SI trae el objeto resuelto (join que ya hace api-bridge),
+    // a diferencia del listado que solo manda sucursalId crudo -- por eso
+    // enrichWithDetail() puede sacar el nombre directo de aca sin tener que
+    // resolverlo contra GET /masters/sucursales.
+    @SerializedName(value = "sucursal", alternate = ["Sucursal"])
+    val sucursal: SucursalResponseDto? = null,
     @SerializedName(value = "vendedorId", alternate = ["VendedorId"])
     val vendedorId: String,
     @SerializedName(value = "referenciaCliente", alternate = ["ReferenciaCliente"])
@@ -103,6 +109,14 @@ data class DepositListResponseDto(
     val numeroOperacionBanco: String?,
     @SerializedName(value = "fechaDeposito", alternate = ["FechaDeposito"])
     val fechaDeposito: String?,
+    // El backend (DepositListResponse en api-bridge) ya manda estos dos
+    // campos hace rato -- faltaban declarados aca, asi que Gson los
+    // descartaba en silencio al deserializar y toReport() nunca los podia
+    // usar (Anexo aparecia siempre vacio, Sucursal ni se intentaba resolver).
+    @SerializedName(value = "anexo", alternate = ["Anexo"])
+    val anexo: String? = null,
+    @SerializedName(value = "sucursalId", alternate = ["SucursalId"])
+    val sucursalId: String? = null,
     // Referencia cruda del voucher en GCS (NO es una URL firmada todavia).
     // Se manda tal cual porque es solo un string ya guardado en la fila del
     // deposito — no cuesta nada incluirlo en el listado. Quien lo consuma

@@ -84,10 +84,23 @@ class DepositRepository(
 
         val body = response.body() ?: return emptyList()
         val vendedor = sessionManager.getFullName().orEmpty()
+        // El listado solo trae sucursalId crudo (a diferencia de empresa/banco,
+        // que ya vienen resueltos) -- se pide el catalogo de sucursales UNA
+        // sola vez aca (no por item) y se arma un mapa id -> nombre para
+        // resolverlo localmente en toReport(), mismo espiritu que el resto del
+        // archivo: nunca N+1 llamadas por fila de la lista.
+        val sucursalNombreById = runCatching { depositApi.getBranches() }
+            .getOrNull()
+            ?.takeIf { it.isSuccessful }
+            ?.body()
+            .orEmpty()
+            .associate { it.id.lowercase() to it.nombre }
+
         return body.items.mapIndexed { index, item ->
             item.toReport(
                 solicitudNum = "#${(index + 1).toString().padStart(3, '0')}",
-                vendedor = vendedor
+                vendedor = vendedor,
+                sucursalNombre = item.sucursalId?.let { sucursalNombreById[it.lowercase()] }
             )
         }
     }
@@ -111,7 +124,11 @@ class DepositRepository(
             // El detalle puede traer una FechaDeposito mas fresca que la del
             // listado (p.ej. si finanzas la cargo justo despues de que se
             // armo la lista). Si tampoco viene, se mantiene la del listado.
-            fechaDeposito = detail.fechaDeposito?.toDisplayDate() ?: report.fechaDeposito
+            fechaDeposito = detail.fechaDeposito?.toDisplayDate() ?: report.fechaDeposito,
+            anexo = detail.anexo ?: report.anexo,
+            // A diferencia del listado (que solo trae sucursalId crudo), el
+            // detalle ya viene con el objeto Sucursal resuelto por el backend.
+            sucursal = detail.sucursal?.nombre ?: report.sucursal
         )
     }
 
@@ -228,7 +245,8 @@ class DepositRepository(
 
     private fun DepositListResponseDto.toReport(
         solicitudNum: String,
-        vendedor: String
+        vendedor: String,
+        sucursalNombre: String?
     ): Report {
         val dateTime = fechaRegistro.toBackendDate()
         return Report(
@@ -243,6 +261,10 @@ class DepositRepository(
             // confirmar -- si esta null (pendiente o rechazado) se deja en
             // blanco, nunca se usa fechaRegistro como reemplazo.
             fechaDeposito = fechaDeposito?.toDisplayDate(),
+            // anexo ya venia del backend en este mismo endpoint -- solo
+            // faltaba declarado en el DTO (ver DepositListResponseDto).
+            anexo = anexo,
+            sucursal = sucursalNombre,
             status = estado.toReportStatus(),
             importe = if (monto > 0.0) "$moneda ${monto.formatAmount()}" else null,
             operacion = numeroOperacionBanco ?: numeroOperacion,
@@ -287,12 +309,25 @@ class DepositRepository(
         }
     }
 
-    // FechaDeposito llega como DateOnly (p.ej. "2026-08-05", sin hora), a
-    // diferencia de FechaRegistro que es un timestamp completo -- por eso el
-    // ultimo patron en BACKEND_DATE_FORMATS ("yyyy-MM-dd") existe puntualmente
-    // para este campo.
+    // FechaDeposito llega como DateOnly (p.ej. "2026-08-11", sin hora ni zona
+    // horaria) -- a diferencia de FechaRegistro, que es un timestamp real y
+    // por eso SI tiene sentido pasarlo por Date/TimeZone para mostrarlo en la
+    // hora local del dispositivo.
+    //
+    // Bug encontrado: esta funcion antes reusaba toBackendDate() (parsea
+    // "2026-08-11" como medianoche UTC) y despues formateaba con
+    // DISPLAY_DATE_FORMAT, que al no fijar zona horaria usa la del
+    // dispositivo. En cualquier huso detras de UTC (Peru, UTC-5) eso corre la
+    // fecha un dia para atras: medianoche UTC del 11 cae a las 19:00 del 10
+    // en hora local -> se mostraba "10/08/2026" para un deposito del 11.
+    // Como un DateOnly no tiene hora que preservar, ahora se reordena el
+    // string a mano ("yyyy-MM-dd" -> "dd/MM/yyyy"), sin pasar nunca por
+    // Date/TimeZone.
     private fun String.toDisplayDate(): String? {
-        return takeUnless { it.isBlank() }?.toBackendDate()?.let { DISPLAY_DATE_FORMAT.format(it) }
+        val datePart = trim().substringBefore('T').substringBefore(' ')
+        val (year, month, day) = datePart.split("-").takeIf { it.size == 3 } ?: return null
+        if (year.length != 4 || month.length != 2 || day.length != 2) return null
+        return "$day/$month/$year"
     }
 
     private fun Double.formatAmount(): String {
@@ -328,8 +363,7 @@ class DepositRepository(
             "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
             "yyyy-MM-dd'T'HH:mm:ss'Z'",
             "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            "yyyy-MM-dd'T'HH:mm:ss",
-            "yyyy-MM-dd"
+            "yyyy-MM-dd'T'HH:mm:ss"
         )
     }
 }

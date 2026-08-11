@@ -103,8 +103,11 @@ import org.json.JSONArray
 import java.text.SimpleDateFormat
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URL
 import java.util.*
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.tconfirmo.ui.theme.TConfirmoTheme
@@ -2579,6 +2582,35 @@ private fun ReportDetailSheet(
         ReportStatus.PENDING -> Color(0xFFFFF6B8)
     }
     val statusLabel = report.status.spanishLabel()
+    val context = LocalContext.current
+    val shareScope = rememberCoroutineScope()
+    var isSharing by remember(report.id) { mutableStateOf(false) }
+
+    // Mismas filas que se muestran en pantalla (DetailRows) -- se calculan
+    // una sola vez aca arriba para poder reusarlas tal cual al armar el
+    // texto de "Compartir", en vez de duplicar la logica de campos por
+    // estado en dos lugares distintos.
+    val detailRows = when (report.status) {
+        ReportStatus.VALIDATED -> listOf(
+            "Empresa" to report.empresa,
+            "Solicitado por" to (report.solicitadoPor ?: "-"),
+            "Sucursal" to (report.sucursal ?: "-"),
+            "Banco" to report.banco,
+            "Anexo" to (report.anexo ?: "-"),
+            "Fecha Deposito" to (report.fechaDeposito ?: "-"),
+            "Operacion" to (report.operacion ?: "-"),
+            "Importe" to (report.importe ?: "-")
+        )
+        else -> listOf(
+            "Solicitado por" to (report.solicitadoPor ?: "-"),
+            "Sucursal" to (report.sucursal ?: "-"),
+            "Empresa" to report.empresa,
+            "Cliente" to report.cliente.ifBlank { "-" },
+            "Banco" to report.banco,
+            "Fecha" to report.fecha,
+            "Hora" to report.hora
+        )
+    }
 
     ModalBottomSheet(
         onDismissRequest = onClose,
@@ -2612,6 +2644,47 @@ private fun ReportDetailSheet(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
+                IconButton(
+                    enabled = !isSharing,
+                    onClick = {
+                        val motivo = if (report.status == ReportStatus.REJECTED) {
+                            enrichedReport.mensajeValidacion
+                        } else null
+                        val shareText = buildReportShareText(report = report, motivoRechazo = motivo)
+
+                        isSharing = true
+                        shareScope.launch {
+                            // El voucher se descarga a un archivo temporal (mismo
+                            // endpoint firmado que usa SignedVoucherImage) para poder
+                            // adjuntarlo como EXTRA_STREAM -- WhatsApp y el resto de
+                            // apps del selector solo aceptan imagenes locales/URIs de
+                            // contenido, no URLs remotas.
+                            val voucherAttachment = downloadVoucherForSharing(context, report)
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                if (voucherAttachment != null) {
+                                    type = voucherAttachment.mimeType
+                                    putExtra(Intent.EXTRA_STREAM, voucherAttachment.uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                } else {
+                                    type = "text/plain"
+                                }
+                                putExtra(Intent.EXTRA_TEXT, shareText)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Compartir solicitud"))
+                            isSharing = false
+                        }
+                    }
+                ) {
+                    if (isSharing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = PrimaryDarkGreen
+                        )
+                    } else {
+                        Icon(Icons.Default.Share, contentDescription = "Compartir", tint = PrimaryDarkGreen)
+                    }
+                }
                 IconButton(onClick = onClose) {
                     Icon(Icons.Default.Close, contentDescription = "Cerrar", tint = PrimaryDarkGreen)
                 }
@@ -2627,29 +2700,7 @@ private fun ReportDetailSheet(
                 }
             )
             Spacer(modifier = Modifier.height(14.dp))
-            DetailRows(
-                rows = when (report.status) {
-                    ReportStatus.VALIDATED -> listOf(
-                        "Empresa" to report.empresa,
-                        "Solicitado por" to (report.solicitadoPor ?: "-"),
-                        "Sucursal" to (report.sucursal ?: "-"),
-                        "Banco" to report.banco,
-                        "Anexo" to (report.anexo ?: "-"),
-                        "Fecha Deposito" to (report.fechaDeposito ?: "-"),
-                        "Operacion" to (report.operacion ?: "-"),
-                        "Importe" to (report.importe ?: "-")
-                    )
-                    else -> listOf(
-                        "Solicitado por" to (report.solicitadoPor ?: "-"),
-                        "Sucursal" to (report.sucursal ?: "-"),
-                        "Empresa" to report.empresa,
-                        "Cliente" to report.cliente.ifBlank { "-" },
-                        "Banco" to report.banco,
-                        "Fecha" to report.fecha,
-                        "Hora" to report.hora
-                    )
-                }
-            )
+            DetailRows(rows = detailRows)
 
             Spacer(modifier = Modifier.height(14.dp))
             // Se usa "report" (no "enrichedReport"): la referencia del voucher
@@ -2660,6 +2711,85 @@ private fun ReportDetailSheet(
             ReportVoucherSection(report)
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+// Arma el texto para el boton "Compartir" del detalle de una solicitud, con
+// el formato pedido para reenviar por WhatsApp (titulo + emojis por campo).
+// Se manda via Intent.ACTION_SEND generico (no atado a WhatsApp
+// especificamente) para que el usuario elija la app de destino desde el
+// selector nativo de Android, que ya incluye WhatsApp si esta instalado.
+private fun buildReportShareText(report: Report, motivoRechazo: String?): String {
+    return when (report.status) {
+        ReportStatus.VALIDATED -> buildString {
+            appendLine("🎉 DEPÓSITO CONFIRMADO")
+            appendLine()
+            appendLine("✅ Empresa: ${report.empresa}")
+            appendLine("📍 Sucursal: ${report.sucursal ?: "-"}")
+            appendLine("🏦 Banco: ${report.banco}")
+            appendLine("🔢 Anexo: ${report.anexo ?: "-"}")
+            appendLine("📅 Fecha Depósito: ${report.fechaDeposito ?: "-"}")
+            appendLine("🆔 Operación: ${report.operacion ?: "-"}")
+            append("💰 Importe: ${report.importe ?: "-"}")
+        }
+        ReportStatus.REJECTED -> buildString {
+            appendLine("❌ DEPÓSITO RECHAZADO")
+            appendLine()
+            appendLine("✅ Empresa: ${report.empresa}")
+            appendLine("📍 Sucursal: ${report.sucursal ?: "-"}")
+            appendLine("🏦 Banco: ${report.banco}")
+            appendLine("📅 Fecha: ${report.fecha}")
+            appendLine("🕐 Hora: ${report.hora}")
+            append("📝 Motivo: ${motivoRechazo?.takeIf { it.isNotBlank() } ?: "-"}")
+        }
+        ReportStatus.PENDING -> buildString {
+            appendLine("⏳ SOLICITUD EN PROCESO")
+            appendLine()
+            appendLine("✅ Empresa: ${report.empresa}")
+            appendLine("📍 Sucursal: ${report.sucursal ?: "-"}")
+            appendLine("🏦 Banco: ${report.banco}")
+            appendLine("📅 Fecha: ${report.fecha}")
+            append("🕐 Hora: ${report.hora}")
+        }
+    }
+}
+
+// Adjunto de voucher listo para EXTRA_STREAM: uri de contenido (via
+// FileProvider) + mime type real del archivo.
+private data class VoucherShareAttachment(val uri: Uri, val mimeType: String)
+
+// Descarga el voucher (mismo endpoint firmado que usa SignedVoucherImage, GET
+// /api/v1/deposits/{id}/image) a un archivo temporal en cache y devuelve una
+// content:// URI para poder compartirlo -- el selector de Android (y
+// WhatsApp en particular) no aceptan una URL remota como adjunto, necesitan
+// un archivo local accesible via FileProvider. Si algo falla (sin voucher,
+// sin token, error de red) devuelve null y el llamador cae a compartir solo
+// el texto.
+private suspend fun downloadVoucherForSharing(context: Context, report: Report): VoucherShareAttachment? {
+    return withContext(Dispatchers.IO) {
+        runCatching {
+            val depositId = report.id
+            val accessToken = SessionManager(context).getAccessToken()
+            if (depositId.isBlank() || accessToken.isNullOrBlank()) return@runCatching null
+
+            val url = "${BuildConfig.API_BASE_URL}api/v1/deposits/$depositId/image" +
+                "?access_token=${Uri.encode(accessToken)}"
+            val bytes = URL(url).openStream().use { it.readBytes() }
+            if (bytes.isEmpty()) return@runCatching null
+
+            val isPdf = report.imageUrl.isPdfVoucher()
+            val extension = if (isPdf) "pdf" else voucherExtension(report.imageUrl.orEmpty())
+            val mimeType = when {
+                isPdf -> "application/pdf"
+                extension == "png" -> "image/png"
+                else -> "image/jpeg"
+            }
+
+            val file = File(context.cacheDir, "voucher_share_$depositId.$extension")
+            file.writeBytes(bytes)
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            VoucherShareAttachment(uri, mimeType)
+        }.getOrNull()
     }
 }
 

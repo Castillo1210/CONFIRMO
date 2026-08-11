@@ -1,8 +1,8 @@
 {
-  "versionCode": 19,
-  "versionName": "1.18",
+  "versionCode": 20,
+  "versionName": "1.19",
   "updatedAt": "2026-08-11",
-  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.18.apk",
-  "releaseNotes": "Se corrige los campos de fecha de deposito y anexo",
+  "apkUrl": "https://raw.githubusercontent.com/Castillo1210/CONFIRMO/main/update/confirmo-1.19.apk",
+  "releaseNotes": "Se agrega el botón de compartir y correción de fecha",
   "required": true
 }
