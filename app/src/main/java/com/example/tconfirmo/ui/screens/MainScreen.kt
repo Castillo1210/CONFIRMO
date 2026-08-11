@@ -2504,7 +2504,7 @@ fun ReportItem(
                         if (report.status == ReportStatus.VALIDATED) {
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                "Anexo: ${report.anexo ?: "RECAU MN"}",
+                                "Anexo: ${report.anexo ?: "-"}",
                                 color = Color(0xFF17265F),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
@@ -2634,8 +2634,8 @@ private fun ReportDetailSheet(
                         "Solicitado por" to (report.solicitadoPor ?: "-"),
                         "Sucursal" to (report.sucursal ?: "-"),
                         "Banco" to report.banco,
-                        "Anexo" to (report.anexo ?: "RECAU MN"),
-                        "Fecha Deposito" to report.fecha,
+                        "Anexo" to (report.anexo ?: "-"),
+                        "Fecha Deposito" to (report.fechaDeposito ?: "-"),
                         "Operacion" to (report.operacion ?: "-"),
                         "Importe" to (report.importe ?: "-")
                     )
@@ -2847,7 +2847,7 @@ private fun exportReportsForExcel(context: Context, reports: List<Report>) {
             report.cliente,
             report.banco,
             report.anexo.orEmpty(),
-            report.fecha,
+            report.fechaDeposito.orEmpty(),
             report.hora,
             report.operacion.orEmpty(),
             report.importe.orEmpty(),

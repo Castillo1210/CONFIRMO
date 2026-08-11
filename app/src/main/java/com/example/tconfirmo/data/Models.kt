@@ -108,6 +108,12 @@ data class Report(
     val operacion: String? = null,
     val sucursal: String? = null,
     val anexo: String? = null,
+    // Fecha real del voucher (Deposito.FechaDeposito, DateOnly? en backend).
+    // La llena finanzas a mano al confirmar el deposito -- por eso queda null
+    // para depositos pendientes o rechazados (nunca llegaron a confirmarse).
+    // Distinta de `fecha`, que es cuando se REGISTRO el deposito en el
+    // sistema (Deposito.FechaRegistro), no la fecha que figura en el voucher.
+    val fechaDeposito: String? = null,
     val voucherName: String? = null,
     val solicitadoPor: String? = null,
     val imageUrl: String? = null,

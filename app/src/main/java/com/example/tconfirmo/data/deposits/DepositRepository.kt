@@ -107,7 +107,11 @@ class DepositRepository(
             // MotivoRechazo quedo sin uso en el backend (nunca se llena en el
             // rechazo, solo se resetea a null al re-registrar). El campo real
             // con el motivo que escribe finanzas es Observaciones.
-            mensajeValidacion = detail.observaciones ?: report.mensajeValidacion
+            mensajeValidacion = detail.observaciones ?: report.mensajeValidacion,
+            // El detalle puede traer una FechaDeposito mas fresca que la del
+            // listado (p.ej. si finanzas la cargo justo despues de que se
+            // armo la lista). Si tampoco viene, se mantiene la del listado.
+            fechaDeposito = detail.fechaDeposito?.toDisplayDate() ?: report.fechaDeposito
         )
     }
 
@@ -235,6 +239,10 @@ class DepositRepository(
             banco = banco?.nombre.orEmpty().ifBlank { "Banco no disponible" },
             fecha = dateTime?.let { DISPLAY_DATE_FORMAT.format(it) } ?: "",
             hora = dateTime?.let { DISPLAY_TIME_FORMAT.format(it) } ?: "",
+            // Solo se llena si finanzas ya cargo la fecha del voucher al
+            // confirmar -- si esta null (pendiente o rechazado) se deja en
+            // blanco, nunca se usa fechaRegistro como reemplazo.
+            fechaDeposito = fechaDeposito?.toDisplayDate(),
             status = estado.toReportStatus(),
             importe = if (monto > 0.0) "$moneda ${monto.formatAmount()}" else null,
             operacion = numeroOperacionBanco ?: numeroOperacion,
@@ -279,6 +287,14 @@ class DepositRepository(
         }
     }
 
+    // FechaDeposito llega como DateOnly (p.ej. "2026-08-05", sin hora), a
+    // diferencia de FechaRegistro que es un timestamp completo -- por eso el
+    // ultimo patron en BACKEND_DATE_FORMATS ("yyyy-MM-dd") existe puntualmente
+    // para este campo.
+    private fun String.toDisplayDate(): String? {
+        return takeUnless { it.isBlank() }?.toBackendDate()?.let { DISPLAY_DATE_FORMAT.format(it) }
+    }
+
     private fun Double.formatAmount(): String {
         return String.format(Locale.US, "%.2f", this)
     }
@@ -312,7 +328,8 @@ class DepositRepository(
             "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
             "yyyy-MM-dd'T'HH:mm:ss'Z'",
             "yyyy-MM-dd'T'HH:mm:ss.SSS",
-            "yyyy-MM-dd'T'HH:mm:ss"
+            "yyyy-MM-dd'T'HH:mm:ss",
+            "yyyy-MM-dd"
         )
     }
 }
